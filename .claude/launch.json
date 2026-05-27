@@ -1,0 +1,13 @@
+{
+  "version": "0.0.1",
+  "autoPort": true,
+  "configurations": [
+    {
+      "name": "ux-prototypes",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["start"],
+      "cwd": "./ux-prototypes",
+      "port": 3002
+    }
+  ]
+}
