@@ -843,7 +843,6 @@ const ItemCard: React.FC<{
           }}>
             {item.whatWeFound}
           </span>
-          <SeverityBadge severity={item.severity} />
           <SkillTag skill={item.skill} />
           <ConfidenceBadge score={item.confidence} />
           <AssignedTag assignees={item.assignees} />
@@ -1054,7 +1053,7 @@ const FeaturedItemCard: React.FC<{
           <div style={{ flex: 1, minWidth: 0 }}>
             {/* Meta line — severity tag + skill tag, same pattern as queue items */}
             <div style={{ fontSize: 11, fontWeight: 600, color: euiTheme.colors.subduedText, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-              {readonly ? 'Handled autonomously' : 'Top priority'} · <SeverityBadge severity={item.severity} />
+              {readonly ? 'Handled autonomously' : 'Top priority'}
             </div>
             {/* Title with inline chip tags for named entities */}
             <div style={{ fontSize: 18, fontWeight: 700, color: euiTheme.colors.title, lineHeight: 1.4, marginBottom: 10, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
@@ -2042,7 +2041,6 @@ const ChatItemCard: React.FC<{
         {/* Agent label + skill + confidence */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
           <span style={{ fontSize: 13, fontWeight: 600, fontFamily: euiTheme.font.family }}>AI Agent</span>
-          <SeverityBadge severity={item.severity} />
           <SkillTag skill={item.skill} />
           <ConfidenceBadge score={item.confidence} />
         </div>
@@ -2207,7 +2205,6 @@ const V2ItemRow: React.FC<{
                 background: '#006BB4', display: 'inline-block', flexShrink: 0,
               }} />
             )}
-            <SeverityBadge severity={item.severity} />
             <SkillTag skill={item.skill} />
             {item.assignees && item.assignees.length > 0 && <AssignedTag assignees={item.assignees} />}
             <ConfidenceBadge score={item.confidence} />
@@ -2437,7 +2434,6 @@ const V3Layout: React.FC<{
                 onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                  <SeverityBadge severity={item.severity} />
                   {item.isNew && !viewedIds.has(item.id) && (
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', borderRadius: 8, fontSize: 10, fontWeight: 700, background: '#E6F2FF', color: '#006BB4', marginLeft: 2 }}>
                       <span style={{ width: 4, height: 4, borderRadius: '50%', background: '#006BB4', display: 'inline-block' }} />
@@ -2505,7 +2501,6 @@ const V3Layout: React.FC<{
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <SkillTag skill={selected.skill} />
-                <SeverityBadge severity={selected.severity} />
                 <ConfidenceBadge score={selected.confidence} />
               </div>
             </div>
@@ -2789,9 +2784,8 @@ const AIBriefingContent: React.FC<{
   const [refreshing, setRefreshing] = useState(false);
   const [rejectTarget, setRejectTarget] = useState<BriefingItem | null>(null);
   const [modifyTarget, setModifyTarget] = useState<BriefingItem | null>(null);
-  const [severityFilter, setSeverityFilter] = useState<Severity | null>(null);
+  const [skillFilter, setSkillFilter] = useState<Skill | null>(null);
   const [viewFilter, setViewFilter] = useState<'queue' | 'history'>('queue');
-  const [filterPopoverOpen, setFilterPopoverOpen] = useState(false);
   const [executingId, setExecutingId] = useState<string | null>(null);
   const [resolvedHistory, setResolvedHistory] = useState<ResolvedHistoryItem[]>([]);
   const [historyFlyoutOpen, setHistoryFlyoutOpen] = useState(false);
@@ -2838,7 +2832,7 @@ const AIBriefingContent: React.FC<{
 
   const pending = items.filter(i => i.status === 'pending');
   const filteredPending = pending.filter(i => {
-    if (severityFilter && i.severity !== severityFilter) return false;
+    if (skillFilter && i.skill !== skillFilter) return false;
     return true;
   });
   const history = items.filter(i => i.status !== 'pending' && i.status !== 'autonomous');
@@ -2846,22 +2840,16 @@ const AIBriefingContent: React.FC<{
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
 
-  // Counts only truly pending (not yet actioned) items for badges — counts evidence items, not BriefingItems
   const pendingOnly = items.filter(i => i.status === 'pending');
-  // Subtract the current top-priority evidence row from the critical count
-  const criticalCount = pendingOnly.filter(i => i.severity === 'Critical').reduce((acc, i) => acc + i.evidence.length, 0)
-    - (pendingOnly.length > 0 && pendingOnly[0].severity === 'Critical' ? tpOffset + 1 : 0);
-  const highCount = pendingOnly.filter(i => i.severity === 'High').reduce((acc, i) => acc + i.evidence.length, 0);
-  const mediumCount = pendingOnly.filter(i => i.severity === 'Medium').reduce((acc, i) => acc + i.evidence.length, 0);
 
   React.useEffect(() => { onPendingChange?.(pendingOnly.length); }, [pendingOnly.length]);
 
-  // Auto-clear severity filter when no more pending items match it
+  // Auto-clear skill filter when no more pending items match it
   React.useEffect(() => {
-    if (severityFilter && !pending.some(i => i.severity === severityFilter)) {
-      setSeverityFilter(null);
+    if (skillFilter && !pending.some(i => i.skill === skillFilter)) {
+      setSkillFilter(null);
     }
-  }, [pending.length, severityFilter]);
+  }, [pending.length, skillFilter]);
 
   const resolveItem = (id: string, updates: Partial<BriefingItem>) => {
     setItems(prev => prev.map(i => i.id === id ? { ...i, ...updates, isNew: false, resolvedAt: `Today at ${now}` } : i));
@@ -2927,42 +2915,16 @@ const AIBriefingContent: React.FC<{
   // Featured item is pinned by ID — never auto-promotes, always requires explicit selection
   const featuredItem = featuredItemId ? (pending.find(i => i.id === featuredItemId) ?? null) : null;
   const featuredSeverity = featuredItem?.severity;
-  // When a severity filter is active, show the first matching pending item instead of the pinned one
-  const displayFeaturedItem = severityFilter
+  const displayFeaturedItem = skillFilter
     ? (filteredPending[0] ?? null)
     : featuredItem;
 
-  const lowCount = pending.filter(i => i.severity === 'Low').reduce((acc, i) => acc + i.evidence.length, 0);
-
-  const OVERVIEW_CELLS: Array<{
-    label: string; count: number; icon: string; color: string;
-    isActive: boolean; onClick: () => void;
-  }> = [
-    {
-      label: 'Critical risk', count: criticalCount, icon: 'warning', color: SEV_COLOR.Critical,
-      isActive: severityFilter === 'Critical' && viewFilter === 'queue',
-      onClick: () => { setSeverityFilter(prev => prev === 'Critical' ? null : 'Critical'); setViewFilter('queue'); },
-    },
-    {
-      label: 'High risk', count: highCount, icon: 'arrowUp', color: SEV_COLOR.High,
-      isActive: severityFilter === 'High' && viewFilter === 'queue',
-      onClick: () => { setSeverityFilter(prev => prev === 'High' ? null : 'High'); setViewFilter('queue'); },
-    },
-    {
-      label: 'Medium risk', count: mediumCount, icon: 'minus', color: SEV_COLOR.Medium,
-      isActive: severityFilter === 'Medium' && viewFilter === 'queue',
-      onClick: () => { setSeverityFilter(prev => prev === 'Medium' ? null : 'Medium'); setViewFilter('queue'); },
-    },
-    {
-      label: 'Low risk', count: lowCount, icon: 'checkInCircleFilled', color: SEV_COLOR.Low,
-      isActive: severityFilter === 'Low' && viewFilter === 'queue',
-      onClick: () => { setSeverityFilter(prev => prev === 'Low' ? null : 'Low'); setViewFilter('queue'); },
-    },
-    {
-      label: 'Handled by AI', count: AUTONOMOUS_ITEMS.length, icon: 'sparkles', color: '#535966',
-      isActive: viewFilter === 'history',
-      onClick: () => { setViewFilter(prev => prev === 'history' ? 'queue' : 'history'); setSeverityFilter(null); },
-    },
+  // Skill type counts for filter tags
+  const SKILL_TYPES: { skill: Skill; label: string; icon: string }[] = [
+    { skill: 'Attack Discovery', label: 'Attack', icon: 'bullseye' },
+    { skill: 'Alert Analysis',   label: 'Alert',  icon: 'warning'  },
+    { skill: 'Cases',            label: 'Case',   icon: 'casesApp' },
+    { skill: 'Detection Rule Edit', label: 'Rule', icon: 'indexEdit' },
   ];
 
 
@@ -3058,7 +3020,7 @@ const AIBriefingContent: React.FC<{
             {viewFilter === 'queue' && (
               <>
                 {/* Queue shows remaining pending items (skip featured + resolved) */}
-                {filteredPending.filter(i => i.id !== featuredItem?.id && i.status === 'pending').length === 0 && !severityFilter
+                {filteredPending.filter(i => i.id !== featuredItem?.id && i.status === 'pending').length === 0 && !skillFilter
                   ? null
                   : filteredPending.filter(i => i.id !== featuredItem?.id && i.status === 'pending').map(item => (
                       <ItemCard
@@ -3163,7 +3125,62 @@ const AIBriefingContent: React.FC<{
         @keyframes rowExpand { from { opacity: 0; max-height: 0; } to { opacity: 1; max-height: 200px; } }
       `}</style>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
+        {/* ── Tab bar ── */}
+        <div style={{
+          flexShrink: 0,
+          display: 'flex', alignItems: 'flex-end',
+          borderBottom: `1px solid ${euiTheme.colors.lightShade}`,
+          padding: '0 24px',
+          background: euiTheme.colors.emptyShade,
+        }}>
+          {([
+            { id: 'queue' as const, label: 'Briefing', icon: 'securityApp' },
+            { id: 'history' as const, label: 'History', icon: 'clock' },
+          ] as const).map(tab => {
+            const isActive = viewFilter === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setViewFilter(tab.id)}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  padding: '10px 4px', marginRight: 20,
+                  border: 'none', background: 'transparent',
+                  borderBottom: isActive ? `2px solid ${euiTheme.colors.primary}` : '2px solid transparent',
+                  color: isActive ? euiTheme.colors.primaryText : euiTheme.colors.subduedText,
+                  fontSize: 14, fontWeight: isActive ? 600 : 400,
+                  fontFamily: euiTheme.font.family, cursor: 'pointer',
+                  transition: 'color 0.12s, border-color 0.12s',
+                  marginBottom: -1,
+                }}
+                onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.color = euiTheme.colors.text; }}
+                onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.color = euiTheme.colors.subduedText; }}
+              >
+                <EuiIcon type={tab.icon} size="s" color={isActive ? 'primary' : 'subdued'} />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
         <div style={{ flex: 1, overflowY: 'auto' }}>
+          {viewFilter === 'history' && (
+            <div style={{ padding: '24px 24px 32px' }}>
+              <div style={{ maxWidth: 860, margin: '0 auto' }}>
+                <EuiText size="xs" color="subdued" style={{ marginBottom: 12 }}>
+                  <strong style={{ textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                    <EuiIcon type="sparkles" size="s" style={{ marginRight: 5, verticalAlign: 'middle' }} />
+                    Handled autonomously ({AUTONOMOUS_ITEMS.length})
+                  </strong>
+                </EuiText>
+                <div style={{ border: `1px solid ${euiTheme.colors.lightShade}`, borderRadius: euiTheme.border.radius.medium, overflow: 'hidden' }}>
+                  {AUTONOMOUS_ITEMS.map(item => <HistoryRow key={item.id} item={{ id: item.id, rank: 0, severity: item.severity, skill: item.skill, confidence: 0, whatWeFound: item.label, whyItMattersNow: item.detail, whatWePropose: '', evidence: [], proposedAction: item.actionTaken, approveLabel: '', approvalText: '', agentIntro: '', status: 'autonomous', resolvedAt: item.resolvedAt }} showExpandedDetail />)}
+                </div>
+              </div>
+            </div>
+          )}
+          {viewFilter === 'queue' && (
           <div style={{ padding: '32px 24px 0' }}>
           <div style={{ maxWidth: 860, margin: '0 auto' }}>
 
@@ -3253,89 +3270,42 @@ const AIBriefingContent: React.FC<{
               marginBottom: 24,
               overflow: 'hidden',
             }}>
-              {/* Title + filter/history buttons */}
-              <div style={{ display: 'flex', alignItems: 'center', padding: '12px 12px 0 16px', gap: 6 }}>
-                <span style={{ fontSize: 12, color: euiTheme.colors.subduedText, fontWeight: 500, flex: 1 }}>
+              {/* Title + type filter tags + history button */}
+              <div style={{ display: 'flex', alignItems: 'center', padding: '12px 12px 12px 16px', gap: 6, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 12, color: euiTheme.colors.subduedText, fontWeight: 500, marginRight: 4 }}>
                   Items in your queue
-                  {severityFilter && viewFilter === 'queue' && (
-                    <span style={{ marginLeft: 6, padding: '1px 7px', borderRadius: 10, fontSize: 11, fontWeight: 600, background: SEV_BG[severityFilter], color: SEV_COLOR[severityFilter], border: `1px solid ${SEV_COLOR[severityFilter]}44` }}>
-                      {severityFilter}
-                    </span>
-                  )}
                 </span>
-                {/* Filter popover */}
-                <div style={{ position: 'relative' }} data-filter-popover>
-                  <EuiToolTip content="Filter by severity" position="top">
+                {/* Object type filter tags */}
+                {SKILL_TYPES.map(({ skill, label, icon }) => {
+                  const count = pendingOnly.filter(i => i.skill === skill).length;
+                  if (count === 0) return null;
+                  const isActive = skillFilter === skill && viewFilter === 'queue';
+                  return (
                     <button
-                      onClick={() => setFilterPopoverOpen(o => !o)}
+                      key={skill}
+                      onClick={() => { setSkillFilter(prev => prev === skill ? null : skill); setViewFilter('queue'); }}
                       style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        width: 28, height: 28, border: 'none', borderRadius: 6, cursor: 'pointer',
-                        background: (filterPopoverOpen || (severityFilter && viewFilter === 'queue')) ? euiTheme.colors.backgroundBaseInteractiveSelect : 'transparent',
-                        transition: 'background 0.15s',
+                        display: 'inline-flex', alignItems: 'center', gap: 5,
+                        padding: '3px 9px', borderRadius: 12, fontSize: 12, fontWeight: isActive ? 600 : 400,
+                        border: `1px solid ${isActive ? euiTheme.colors.primary : euiTheme.colors.lightShade}`,
+                        background: isActive ? euiTheme.colors.backgroundBaseInteractiveSelect : euiTheme.colors.emptyShade,
+                        color: isActive ? euiTheme.colors.primaryText : euiTheme.colors.text,
+                        cursor: 'pointer', fontFamily: euiTheme.font.family, transition: 'all 0.12s',
                       }}
-                      onMouseEnter={e => { if (!filterPopoverOpen) (e.currentTarget as HTMLElement).style.background = euiTheme.colors.lightestShade; }}
-                      onMouseLeave={e => { if (!filterPopoverOpen) (e.currentTarget as HTMLElement).style.background = (severityFilter && viewFilter === 'queue') ? euiTheme.colors.backgroundBaseInteractiveSelect : 'transparent'; }}
+                      onMouseEnter={e => { if (!isActive) { (e.currentTarget as HTMLElement).style.borderColor = euiTheme.colors.primary; (e.currentTarget as HTMLElement).style.color = euiTheme.colors.primary; } }}
+                      onMouseLeave={e => { if (!isActive) { (e.currentTarget as HTMLElement).style.borderColor = euiTheme.colors.lightShade; (e.currentTarget as HTMLElement).style.color = euiTheme.colors.text; } }}
                     >
-                      <IcQueueFilter color={(filterPopoverOpen || (severityFilter && viewFilter === 'queue')) ? euiTheme.colors.primary : euiTheme.colors.subduedText} />
+                      <EuiIcon type={icon} size="s" color={isActive ? 'primary' : 'subdued'} />
+                      {label}
+                      <span style={{ fontSize: 11, fontWeight: 700, color: isActive ? euiTheme.colors.primaryText : euiTheme.colors.subduedText }}>{count}</span>
                     </button>
-                  </EuiToolTip>
-                  {/* Popover dropdown */}
-                  {filterPopoverOpen && (
-                    <div style={{
-                      position: 'absolute', top: 34, right: 0, zIndex: 200,
-                      background: euiTheme.colors.emptyShade,
-                      border: `1px solid ${euiTheme.colors.lightShade}`,
-                      borderRadius: euiTheme.border.radius.medium,
-                      boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
-                      minWidth: 160, padding: '6px 0',
-                    }}>
-                      <div style={{ padding: '4px 12px 6px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: euiTheme.colors.subduedText }}>
-                        Filter by severity
-                      </div>
-                      {(['Critical', 'High', 'Medium', 'Low'] as Severity[]).map(sev => {
-                        const isActive = severityFilter === sev && viewFilter === 'queue';
-                        return (
-                          <button
-                            key={sev}
-                            onClick={() => { setSeverityFilter(prev => prev === sev ? null : sev); setViewFilter('queue'); setFilterPopoverOpen(false); }}
-                            style={{
-                              display: 'flex', alignItems: 'center', gap: 8,
-                              width: '100%', padding: '7px 12px', border: 'none',
-                              background: isActive ? euiTheme.colors.backgroundBaseInteractiveSelect : 'transparent',
-                              cursor: 'pointer', fontFamily: euiTheme.font.family,
-                              textAlign: 'left', transition: 'background 0.12s',
-                            }}
-                            onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = euiTheme.colors.lightestShade; }}
-                            onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-                          >
-                            <span style={{ width: 8, height: 8, borderRadius: '50%', background: SEV_COLOR[sev], flexShrink: 0 }} />
-                            <span style={{ fontSize: 13, color: isActive ? euiTheme.colors.primaryText : euiTheme.colors.text, fontWeight: isActive ? 600 : 400 }}>{sev}</span>
-                            {isActive && <EuiIcon type="check" size="s" color="primary" style={{ marginLeft: 'auto' }} />}
-                          </button>
-                        );
-                      })}
-                      {severityFilter && viewFilter === 'queue' && (
-                        <>
-                          <div style={{ height: 1, background: euiTheme.colors.lightShade, margin: '4px 0' }} />
-                          <button
-                            onClick={() => { setSeverityFilter(null); setFilterPopoverOpen(false); }}
-                            style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '7px 12px', border: 'none', background: 'transparent', cursor: 'pointer', fontFamily: euiTheme.font.family }}
-                            onMouseEnter={e => ((e.currentTarget as HTMLElement).style.background = euiTheme.colors.lightestShade)}
-                            onMouseLeave={e => ((e.currentTarget as HTMLElement).style.background = 'transparent')}
-                          >
-                            <EuiIcon type="cross" size="s" color="subdued" />
-                            <span style={{ fontSize: 13, color: euiTheme.colors.subduedText }}>Clear filter</span>
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  )}
-                </div>
+                  );
+                })}
+                <div style={{ flex: 1 }} />
                 {/* History icon */}
                 <EuiToolTip content="Resolved items" position="top">
                   <button
-                    onClick={() => { setHistoryTab('history'); setHistoryFlyoutOpen(true); setFilterPopoverOpen(false); }}
+                    onClick={() => { setHistoryTab('history'); setHistoryFlyoutOpen(true); }}
                     style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       width: 28, height: 28, border: 'none', borderRadius: 6, cursor: 'pointer',
@@ -3349,31 +3319,6 @@ const AIBriefingContent: React.FC<{
                   </button>
                 </EuiToolTip>
               </div>
-              {/* Flat metrics row — floating card with margins */}
-              <div style={{ display: 'flex', margin: '16px 16px 12px', border: '1px solid #E3E8F2', background: euiTheme.colors.emptyShade, borderRadius: 8, overflow: 'hidden' }}>
-                {[
-                  { label: 'Critical risk', count: criticalCount, color: SEV_COLOR.Critical, sev: 'Critical' as Severity },
-                  { label: 'High risk', count: highCount, color: SEV_COLOR.High, sev: 'High' as Severity },
-                  { label: 'Medium', count: mediumCount, color: SEV_COLOR.Medium, sev: 'Medium' as Severity },
-                  { label: 'Low', count: lowCount, color: SEV_COLOR.Low, sev: 'Low' as Severity },
-                ].map((cell, idx) => (
-                  <button
-                    key={cell.sev}
-                    onClick={() => { setSeverityFilter(prev => prev === cell.sev ? null : cell.sev); setViewFilter('queue'); }}
-                    style={{
-                      flex: 1, padding: '14px 18px', textAlign: 'left', cursor: 'pointer',
-                      background: severityFilter === cell.sev && viewFilter === 'queue' ? `${cell.color}08` : 'transparent',
-                      border: 'none', borderLeft: idx > 0 ? `1px solid ${euiTheme.colors.lightShade}` : 'none',
-                      fontFamily: euiTheme.font.family, transition: 'background 0.15s',
-                    }}
-                    onMouseEnter={e => { if (severityFilter !== cell.sev) (e.currentTarget as HTMLElement).style.background = euiTheme.colors.lightestShade; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = severityFilter === cell.sev && viewFilter === 'queue' ? `${cell.color}08` : 'transparent'; }}
-                  >
-                    <div style={{ fontSize: 11, color: euiTheme.colors.subduedText, marginBottom: 4, whiteSpace: 'nowrap' }}>{cell.label}</div>
-                    <div style={{ fontSize: 22, fontWeight: 700, color: cell.color, lineHeight: 1 }}>{cell.count}</div>
-                  </button>
-                ))}
-              </div>
 
 
             {/* ── Queue items — flat evidence rows ── */}
@@ -3384,7 +3329,7 @@ const AIBriefingContent: React.FC<{
                   .sort((a, b) => a.type === 'attack' ? -1 : b.type === 'attack' ? 1 : 0)
                   .map((ev, evIdx) => ({ ev, item, itemIdx, evIdx }))
               ).filter(({ itemIdx, evIdx }) => !(itemIdx === 0 && evIdx <= tpOffset))
-               .filter(({ item }) => severityFilter ? item.severity === severityFilter : true);
+               .filter(({ item }) => skillFilter ? item.skill === skillFilter : true);
 
               if (queueEvidenceRows.length === 0) return (
                 <div style={{ padding: '20px 16px', textAlign: 'center', color: euiTheme.colors.subduedText, fontSize: 13 }}>
@@ -3541,8 +3486,9 @@ const AIBriefingContent: React.FC<{
             </div>{/* /box 3 */}
 
             <div style={{ height: 24 }} />
-          </div>{/* /maxWidth centering */}
-          </div>{/* /outer padding */}
+          </div>
+          </div>
+          )}
         </div>
       </div>
 
