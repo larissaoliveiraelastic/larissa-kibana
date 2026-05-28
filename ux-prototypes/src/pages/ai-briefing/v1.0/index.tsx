@@ -3048,7 +3048,9 @@ const AIBriefingContent: React.FC<{
   onOpenAgent: (query: string) => void;
   agentInputBar: (placeholder: string) => JSX.Element;
   agentPanelOpen?: boolean;
-}> = ({ onPendingChange, protoVersion, setProtoVersion, onOpenAgent, agentInputBar, agentPanelOpen }) => {
+  filterVersion: 'v1' | 'v2';
+  setFilterVersion: (v: 'v1' | 'v2') => void;
+}> = ({ onPendingChange, protoVersion, setProtoVersion, onOpenAgent, agentInputBar, agentPanelOpen, filterVersion, setFilterVersion }) => {
   const { euiTheme } = useEuiTheme();
   const [items, setItems] = useState<BriefingItem[]>(INITIAL_ITEMS);
   const [viewedIds, setViewedIds] = useState<Set<string>>(new Set());
@@ -3058,7 +3060,6 @@ const AIBriefingContent: React.FC<{
   const [modifyTarget, setModifyTarget] = useState<BriefingItem | null>(null);
   const [skillFilter, setSkillFilter] = useState<Skill | null>(null);
   const [severityFilter, setSeverityFilter] = useState<Severity | null>(null);
-  const [filterVersion, setFilterVersion] = useState<'v1' | 'v2'>('v2');
   const [executingId, setExecutingId] = useState<string | null>(null);
   const [resolvedHistory, setResolvedHistory] = useState<ResolvedHistoryItem[]>([]);
   const [historyFlyoutOpen, setHistoryFlyoutOpen] = useState(false);
@@ -3542,26 +3543,6 @@ const AIBriefingContent: React.FC<{
 
                 <div style={{ flex: 1 }} />
 
-                {/* v1 / v2 segmented control */}
-                <div style={{ display: 'inline-flex', padding: 2, borderRadius: 6, background: euiTheme.colors.lightestShade, border: `1px solid ${euiTheme.colors.lightShade}` }}>
-                  {(['v1', 'v2'] as const).map(v => (
-                    <button
-                      key={v}
-                      onClick={() => { setFilterVersion(v); setSkillFilter(null); setSeverityFilter(null); }}
-                      style={{
-                        padding: '2px 10px', borderRadius: 4, border: 'none', cursor: 'pointer',
-                        fontSize: 11, fontWeight: 600, fontFamily: euiTheme.font.family,
-                        background: filterVersion === v ? euiTheme.colors.emptyShade : 'transparent',
-                        color: filterVersion === v ? euiTheme.colors.primaryText : euiTheme.colors.subduedText,
-                        boxShadow: filterVersion === v ? `0 1px 2px rgba(0,0,0,0.08)` : 'none',
-                        transition: 'all 0.12s',
-                      }}
-                    >
-                      {v}
-                    </button>
-                  ))}
-                </div>
-
                 {/* History icon */}
                 <EuiToolTip content="Resolved items" position="top">
                   <button
@@ -3869,6 +3850,7 @@ const AIBriefingApp: React.FC = () => {
   const [showSecondary, setShowSecondary] = useState(true);
   const protoVersion: 'v1' | 'v2' | 'v3' = 'v2';
   const setProtoVersion = (_v: 'v1' | 'v2' | 'v3') => {};
+  const [filterVersion, setFilterVersion] = useState<'v1' | 'v2'>('v2');
   const [agentOpen, setAgentOpen] = useState(false);
   const [agentFullScreen, setAgentFullScreen] = useState(false);
   const [sentQuery, setSentQuery] = useState('');
@@ -3938,7 +3920,7 @@ const AIBriefingApp: React.FC = () => {
 
   const renderContent = () => {
     if (agentFullScreen) return <AgentSidePanel query={sentQuery} onClose={() => { setAgentFullScreen(false); }} />;
-    if (activeNav === 'ai_briefing') return <AIBriefingContent onPendingChange={setPendingCount} protoVersion={protoVersion} setProtoVersion={setProtoVersion} onOpenAgent={onOpenAgent} agentInputBar={agentInputBar} agentPanelOpen={agentOpen} />;
+    if (activeNav === 'ai_briefing') return <AIBriefingContent onPendingChange={setPendingCount} protoVersion={protoVersion} setProtoVersion={setProtoVersion} onOpenAgent={onOpenAgent} agentInputBar={agentInputBar} agentPanelOpen={agentOpen} filterVersion={filterVersion} setFilterVersion={setFilterVersion} />;
     const labels: Record<string, string> = {
       get_started: 'Get started', siem_readiness: 'SIEM Readiness', value_report: 'Value report',
       auto_migrations: 'Manage automatic migrations', translated_rules: 'Translated rules',
@@ -3957,7 +3939,26 @@ const AIBriefingApp: React.FC = () => {
           colorMode={colorMode}
           onToggleColorMode={() => setColorMode(colorMode === 'light' ? 'dark' : 'light')}
           onAssistantClick={() => {}}
-          rightContent={undefined}
+          rightContent={activeNav === 'ai_briefing' ? (
+            <div style={{ display: 'inline-flex', padding: 2, borderRadius: 6, background: euiTheme.colors.lightestShade, border: `1px solid ${euiTheme.colors.lightShade}` }}>
+              {(['v1', 'v2'] as const).map(v => (
+                <button
+                  key={v}
+                  onClick={() => setFilterVersion(v)}
+                  style={{
+                    padding: '3px 12px', borderRadius: 4, border: 'none', cursor: 'pointer',
+                    fontSize: 12, fontWeight: 600, fontFamily: euiTheme.font.family,
+                    background: filterVersion === v ? euiTheme.colors.emptyShade : 'transparent',
+                    color: filterVersion === v ? euiTheme.colors.primaryText : euiTheme.colors.subduedText,
+                    boxShadow: filterVersion === v ? '0 1px 3px rgba(0,0,0,0.10)' : 'none',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  {v}
+                </button>
+              ))}
+            </div>
+          ) : undefined}
           onAgentClick={() => onOpenAgent('Brief me on this shift')}
           agentOpen={agentOpen}
         />
