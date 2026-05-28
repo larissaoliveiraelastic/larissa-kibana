@@ -1476,22 +1476,60 @@ const HistoryRow: React.FC<{ item: BriefingItem; showExpandedDetail?: boolean }>
 
 // ─── Modals ───────────────────────────────────────────────────────────────────
 
-const ApproveModal: React.FC<{ item: BriefingItem; onConfirm: () => void; onCancel: () => void }> = ({ item, onConfirm, onCancel }) => (
-  <EuiModal onClose={onCancel} style={{ maxWidth: 480 }}>
-    <EuiModalHeader><EuiModalHeaderTitle>Confirm approval</EuiModalHeaderTitle></EuiModalHeader>
-    <EuiModalBody>
-      <EuiText size="s" color="subdued"><p>The platform will execute the following action on your behalf:</p></EuiText>
-      <div style={{ padding: '12px 16px', borderRadius: 6, border: '1px solid #D3DAE6', margin: '12px 0', background: '#F1F4FA', display: 'flex', alignItems: 'center', gap: 10 }}>
-        <EuiIcon type="sparkles" color="primary" /><strong>{item.proposedAction}</strong>
-      </div>
-      <EuiText size="s" color="subdued">This action cannot be undone. The item will exit the queue.</EuiText>
-    </EuiModalBody>
-    <EuiModalFooter>
-      <EuiButtonEmpty onClick={onCancel}>Cancel</EuiButtonEmpty>
-      <EuiButton fill onClick={onConfirm}>Confirm & Execute</EuiButton>
-    </EuiModalFooter>
-  </EuiModal>
-);
+const ApproveModal: React.FC<{ item: BriefingItem; onConfirm: () => void; onCancel: () => void }> = ({ item, onConfirm, onCancel }) => {
+  const { euiTheme } = useEuiTheme();
+  // Split approvalText into bullet points by ". " — filter out empty entries
+  const bulletPoints = item.approvalText
+    .split(/\.\s+/)
+    .map(s => s.trim().replace(/\.$/, ''))
+    .filter(s => s.length > 0)
+    .slice(0, 2);
+
+  return (
+    <EuiModal onClose={onCancel} style={{ maxWidth: 520 }}>
+      <EuiModalHeader>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 28, height: 28, borderRadius: 8, background: `${euiTheme.colors.primary}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <EuiIcon type="checkInCircleFilled" color="primary" size="m" />
+          </div>
+          <EuiModalHeaderTitle>Confirm action</EuiModalHeaderTitle>
+        </div>
+      </EuiModalHeader>
+      <EuiModalBody>
+        {/* Item title */}
+        <p style={{ fontSize: 13, fontWeight: 500, fontFamily: euiTheme.font.family, color: euiTheme.colors.text, margin: '0 0 14px', lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {item.whatWeFound}
+        </p>
+
+        {/* Proposed action highlight */}
+        <div style={{ padding: '10px 14px', borderRadius: 8, border: `1px solid ${euiTheme.colors.primary}44`, background: `${euiTheme.colors.primary}09`, display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+          <div style={{ width: 20, height: 20, borderRadius: 6, background: 'linear-gradient(135deg, #1750BA 0%, #6B3C9F 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <EuiIcon type="sparkles" size="s" style={{ color: '#fff' }} />
+          </div>
+          <strong style={{ fontSize: 14, fontFamily: euiTheme.font.family, color: euiTheme.colors.text }}>{item.proposedAction}</strong>
+        </div>
+
+        {/* What will happen */}
+        <div style={{ marginBottom: 4 }}>
+          <p style={{ fontSize: 12, fontWeight: 600, color: euiTheme.colors.subduedText, textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: euiTheme.font.family, margin: '0 0 8px' }}>
+            What will happen
+          </p>
+          <ul style={{ margin: 0, padding: '0 0 0 16px', fontFamily: euiTheme.font.family }}>
+            {bulletPoints.map((point, i) => (
+              <li key={i} style={{ fontSize: 13, color: euiTheme.colors.text, lineHeight: 1.6, marginBottom: 2 }}>{point}</li>
+            ))}
+            <li style={{ fontSize: 13, color: euiTheme.colors.text, lineHeight: 1.6, marginBottom: 2 }}>The item will exit your queue</li>
+            <li style={{ fontSize: 13, color: euiTheme.colors.subduedText, lineHeight: 1.6 }}>This action cannot be undone</li>
+          </ul>
+        </div>
+      </EuiModalBody>
+      <EuiModalFooter>
+        <EuiButtonEmpty onClick={onCancel}>Cancel</EuiButtonEmpty>
+        <EuiButton fill iconType="arrowRight" iconSide="right" onClick={onConfirm}>Confirm &amp; Execute</EuiButton>
+      </EuiModalFooter>
+    </EuiModal>
+  );
+};
 
 const RejectModal: React.FC<{ onConfirm: (reason: string) => void; onCancel: () => void }> = ({ onConfirm, onCancel }) => {
   const [reason, setReason] = useState('');
@@ -1524,6 +1562,144 @@ const ModifyModal: React.FC<{ item: BriefingItem; onConfirm: (action: string) =>
         <EuiButton fill onClick={() => onConfirm(action)} isDisabled={!action.trim()}>Approve Modified Action</EuiButton>
       </EuiModalFooter>
     </EuiModal>
+  );
+};
+
+// ─── Detail Flyout ────────────────────────────────────────────────────────────
+
+const SKILL_DESTINATION: Record<Skill, string> = {
+  'Attack Discovery': 'Security',
+  'Alert Analysis': 'Alerts',
+  'Cases': 'Cases',
+  'Detection Rule Edit': 'Rules',
+};
+
+const DetailFlyout: React.FC<{
+  item: BriefingItem;
+  onClose: () => void;
+  onApprove: (item: BriefingItem) => void;
+}> = ({ item, onClose, onApprove }) => {
+  const { euiTheme } = useEuiTheme();
+  const destination = SKILL_DESTINATION[item.skill];
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        onClick={onClose}
+        style={{
+          position: 'absolute', inset: 0, zIndex: 400,
+          background: 'rgba(0,0,0,0.18)',
+        }}
+      />
+      {/* Panel */}
+      <div style={{
+        position: 'absolute', top: 0, right: 0, bottom: 0,
+        width: 480, zIndex: 401,
+        background: euiTheme.colors.emptyShade,
+        boxShadow: '-4px 0 24px rgba(0,0,0,0.14)',
+        display: 'flex', flexDirection: 'column',
+        fontFamily: euiTheme.font.family,
+      }}>
+        {/* Header */}
+        <div style={{
+          flexShrink: 0, padding: '14px 16px',
+          borderBottom: `1px solid ${euiTheme.colors.lightShade}`,
+          display: 'flex', alignItems: 'flex-start', gap: 10,
+        }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+              <SkillTag skill={item.skill} />
+              <ConfidenceBadge score={item.confidence} />
+              <span style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700, background: SEV_BG[item.severity], color: SEV_COLOR[item.severity] }}>
+                {item.severity}
+              </span>
+            </div>
+            <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: euiTheme.colors.title, lineHeight: 1.4 }}>
+              {item.whatWeFound}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: 4, borderRadius: 4, display: 'flex', alignItems: 'center', flexShrink: 0 }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = euiTheme.colors.lightestShade; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+          >
+            <EuiIcon type="cross" size="m" color="subdued" />
+          </button>
+        </div>
+
+        {/* Scrollable body */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 18px' }}>
+
+          {/* Why it matters */}
+          <div style={{ marginBottom: 20 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: euiTheme.colors.subduedText, textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 6px' }}>
+              Why it matters now
+            </p>
+            <EuiText size="s" style={{ lineHeight: 1.65, color: euiTheme.colors.text }}>{item.whyItMattersNow || item.whatWePropose}</EuiText>
+          </div>
+
+          {/* Proposed action */}
+          <div style={{ marginBottom: 20 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: euiTheme.colors.subduedText, textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 6px' }}>
+              Proposed action
+            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 8, background: `${euiTheme.colors.primary}09`, border: `1px solid ${euiTheme.colors.primary}33` }}>
+              <div style={{ width: 20, height: 20, borderRadius: 6, background: 'linear-gradient(135deg, #1750BA 0%, #6B3C9F 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <EuiIcon type="sparkles" size="s" style={{ color: '#fff' }} />
+              </div>
+              <strong style={{ fontSize: 14, color: euiTheme.colors.text }}>{item.proposedAction}</strong>
+            </div>
+          </div>
+
+          {/* Evidence */}
+          <div style={{ marginBottom: 20 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: euiTheme.colors.subduedText, textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 8px' }}>
+              Evidence ({item.evidence.length})
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {item.evidence.map((ev, i) => (
+                <div key={i} style={{ padding: '10px 12px', borderRadius: 8, border: `1px solid ${euiTheme.colors.lightShade}`, background: euiTheme.colors.body }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                    <EuiIcon type={EVIDENCE_ICON[ev.type] || 'document'} size="s" color="subdued" />
+                    <span style={{ fontSize: 12, fontWeight: 500, color: euiTheme.colors.text }}>{ev.label}</span>
+                  </div>
+                  {ev.detail && (
+                    <p style={{ margin: '4px 0 0 22px', fontSize: 11, color: euiTheme.colors.subduedText, lineHeight: 1.55, whiteSpace: 'pre-line' }}>{ev.detail}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* What will happen if approved */}
+          <div>
+            <p style={{ fontSize: 11, fontWeight: 700, color: euiTheme.colors.subduedText, textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 6px' }}>
+              What will happen if approved
+            </p>
+            <EuiText size="s" style={{ lineHeight: 1.65, color: euiTheme.colors.text }}>{item.approvalText}</EuiText>
+          </div>
+
+        </div>
+
+        {/* Sticky footer */}
+        <div style={{
+          flexShrink: 0, padding: '12px 16px',
+          borderTop: `1px solid ${euiTheme.colors.lightShade}`,
+          display: 'flex', alignItems: 'center', gap: 10,
+          background: euiTheme.colors.emptyShade,
+        }}>
+          <EuiButtonEmpty iconType="popout" iconSide="right" size="s" href="#" target="_blank">
+            Review in {destination}
+          </EuiButtonEmpty>
+          <div style={{ flex: 1 }} />
+          <EuiButton fill size="s" onClick={() => { onApprove(item); onClose(); }}>
+            Approve &amp; Execute
+          </EuiButton>
+        </div>
+      </div>
+    </>
   );
 };
 
@@ -1625,6 +1801,10 @@ const AgentSidePanel: React.FC<{ query: string; onClose: () => void }> = ({ quer
   const [followUp, setFollowUp] = useState('');
   const [messages, setMessages] = useState<{ role: 'user' | 'agent'; text: string; followUps?: string[] }[]>([]);
   const [isTyping, setIsTyping] = useState(false);
+  // Action card state
+  const [actionExecuted, setActionExecuted] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [actionDone, setActionDone] = useState(false);
   const bodyRef = React.useRef<HTMLDivElement>(null);
   const now = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC', hour12: false }) + ' UTC';
 
@@ -1892,6 +2072,39 @@ const AgentSidePanel: React.FC<{ query: string; onClose: () => void }> = ({ quer
     </div>
   );
 
+  // Detect if latest agent message warrants an action card
+  const lastAgentMsg = [...messages].reverse().find(m => m.role === 'agent');
+  const actionKeywords = ['isolate', 'execute', 'block', 'suppress', 'close', 'reset', 'kill session', 'assign'];
+  const lastMsgHasAction = lastAgentMsg
+    ? actionKeywords.some(kw => lastAgentMsg.text.toLowerCase().includes(kw))
+    : false;
+  // Derive action label from the last agent message
+  const getActionLabelFromMsg = (text: string): string => {
+    if (text.toLowerCase().includes('isolate srvwin03')) return 'Isolate SRVWIN03';
+    if (text.toLowerCase().includes('isolate srvwin07')) return 'Isolate SRVWIN07';
+    if (text.toLowerCase().includes('block')) return 'Block C2 IP';
+    if (text.toLowerCase().includes('close all') || text.toLowerCase().includes('close')) return 'Close all (FP)';
+    if (text.toLowerCase().includes('kill session') || text.toLowerCase().includes('kill-session')) return 'Kill session';
+    if (text.toLowerCase().includes('assign')) return 'Assign to me';
+    return 'Execute action';
+  };
+  const actionLabel = lastAgentMsg ? getActionLabelFromMsg(lastAgentMsg.text) : 'Execute action';
+  const showActionCard = !isTyping && lastMsgHasAction && !actionExecuted && messages.length > 0;
+
+  const handleActionExecute = () => {
+    setActionLoading(true);
+    setTimeout(() => {
+      setActionLoading(false);
+      setActionDone(true);
+      setActionExecuted(true);
+      setMessages(prev => [...prev, {
+        role: 'agent',
+        text: `Done. I've executed **${actionLabel}**. The item has been removed from your queue.`,
+        followUps: ['What should I do next?', 'Show me the queue'],
+      }]);
+    }, 1500);
+  };
+
   // ── Chat view ──────────────────────────────────────────────────────────────
   const ChatView = (
     <div ref={bodyRef} style={{ flex: 1, overflowY: 'auto', padding: '16px 14px' }}>
@@ -1934,6 +2147,65 @@ const AgentSidePanel: React.FC<{ query: string; onClose: () => void }> = ({ quer
           </div>
         </div>
       ))}
+
+      {/* Action card — only on last agent message, only when action keyword is detected */}
+      {showActionCard && !actionDone && (
+        <div style={{
+          marginBottom: 16, marginTop: 4,
+          border: `1.5px solid ${euiTheme.colors.primary}55`,
+          borderRadius: 10, overflow: 'hidden',
+          background: `${euiTheme.colors.primary}07`,
+        }}>
+          {/* Header row */}
+          <div style={{ padding: '10px 14px 8px', display: 'flex', alignItems: 'center', gap: 8, borderBottom: `1px solid ${euiTheme.colors.primary}22` }}>
+            <div style={{ width: 18, height: 18, borderRadius: 5, background: 'linear-gradient(135deg, #1750BA 0%, #6B3C9F 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <EuiIcon type="sparkles" size="s" style={{ color: '#fff' }} />
+            </div>
+            <span style={{ fontSize: 12, fontWeight: 700, color: euiTheme.colors.primary, fontFamily: euiTheme.font.family }}>Ready to execute</span>
+          </div>
+          {/* Body */}
+          <div style={{ padding: '10px 14px 12px' }}>
+            <p style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 600, color: euiTheme.colors.title, fontFamily: euiTheme.font.family }}>{actionLabel}</p>
+            <p style={{ margin: '0 0 12px', fontSize: 12, color: euiTheme.colors.subduedText, fontFamily: euiTheme.font.family, lineHeight: 1.55 }}>
+              {actionLabel.toLowerCase().includes('isolate')
+                ? 'Network isolation will cut lateral movement immediately. Tier 2 team will be paged.'
+                : actionLabel.toLowerCase().includes('block')
+                ? 'The C2 IP will be blocked at perimeter. Beaconing will stop immediately.'
+                : actionLabel.toLowerCase().includes('close')
+                ? 'All matching alerts will be closed as false positives. A group exception will be added.'
+                : 'The agent will execute this action on your behalf.'}
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <EuiButtonEmpty size="s" onClick={() => setActionExecuted(true)}>Cancel</EuiButtonEmpty>
+              <EuiButton
+                size="s"
+                fill
+                isLoading={actionLoading}
+                onClick={handleActionExecute}
+              >
+                Execute action
+              </EuiButton>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Success banner — replaces action card after execution */}
+      {actionDone && !messages[messages.length - 1]?.text.includes('Done. I') && (
+        <div style={{
+          marginBottom: 16,
+          padding: '10px 14px',
+          borderRadius: 8,
+          background: '#E3F8F1',
+          border: '1px solid #1A7348',
+          display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          <EuiIcon type="checkInCircleFilled" color="success" size="m" />
+          <span style={{ fontSize: 13, fontWeight: 600, color: '#006959', fontFamily: euiTheme.font.family }}>
+            Action executed — {actionLabel}
+          </span>
+        </div>
+      )}
       {isTyping && typed && (
         <div style={{ marginBottom: 16, fontSize: 13, fontFamily: euiTheme.font.family, color: euiTheme.colors.text }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
@@ -2804,20 +3076,11 @@ const AIBriefingContent: React.FC<{
   const [queueExecutingKey, setQueueExecutingKey] = useState<string | null>(null);
   const [queueSuccessKey, setQueueSuccessKey] = useState<string | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [approveTarget, setApproveTarget] = useState<BriefingItem | null>(null);
+  const [detailFlyoutItem, setDetailFlyoutItem] = useState<BriefingItem | null>(null);
   const addToast = (toast: Omit<Toast, 'id'>) =>
     setToasts(prev => [...prev, { ...toast, id: String(Date.now()) }]);
   const removeToast = (t: Toast) => setToasts(prev => prev.filter(x => x.id !== t.id));
-
-  // Close filter popover on outside click
-  React.useEffect(() => {
-    if (!filterPopoverOpen) return;
-    const handler = (e: MouseEvent) => {
-      const t = e.target as HTMLElement;
-      if (!t.closest('[data-filter-popover]')) setFilterPopoverOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [filterPopoverOpen]);
 
   // Close queue row "…" menu on outside click
   React.useEffect(() => {
@@ -2954,6 +3217,13 @@ const AIBriefingContent: React.FC<{
           }}
           onCancel={() => setModifyTarget(null)} />
       )}
+      {approveTarget && (
+        <ApproveModal
+          item={approveTarget}
+          onConfirm={() => { handleExecuteDirect(approveTarget); setApproveTarget(null); }}
+          onCancel={() => setApproveTarget(null)}
+        />
+      )}
     </>
   );
 
@@ -3026,7 +3296,7 @@ const AIBriefingContent: React.FC<{
                       <ItemCard
                         key={item.id}
                         item={{ ...item, isNew: item.isNew && !viewedIds.has(item.id) }}
-                        onApprove={handleExecuteDirect}
+                        onApprove={setApproveTarget}
                         onModify={setModifyTarget}
                         onReject={setRejectTarget}
                         onViewed={markViewed}
@@ -3119,7 +3389,7 @@ const AIBriefingContent: React.FC<{
     : 'Your shift is clear — no alerts to action';
 
   return (
-    <div style={{ height: '100%', display: 'flex', overflow: 'hidden' }}>
+    <div style={{ height: '100%', display: 'flex', overflow: 'hidden', position: 'relative' }}>
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes rowExpand { from { opacity: 0; max-height: 0; } to { opacity: 1; max-height: 200px; } }
@@ -3369,7 +3639,12 @@ const AIBriefingContent: React.FC<{
                         {/* Main row */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px' }}>
                           {/* Expand icon */}
-                          <button style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: 2, borderRadius: 4, display: 'flex', alignItems: 'center', flexShrink: 0, opacity: 0.45 }}>
+                          <button
+                            onClick={() => setDetailFlyoutItem(item)}
+                            style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: 2, borderRadius: 4, display: 'flex', alignItems: 'center', flexShrink: 0, opacity: 1 }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = euiTheme.colors.lightestShade; }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                          >
                             <IcExpand color="#69707D" />
                           </button>
                           {/* Left group: label + type tag + severity — takes all available space */}
@@ -3502,6 +3777,13 @@ const AIBriefingContent: React.FC<{
         onThresholdChange={setConfidenceThreshold}
         agentPanelOpen={agentPanelOpen}
       />
+      {detailFlyoutItem && (
+        <DetailFlyout
+          item={detailFlyoutItem}
+          onClose={() => setDetailFlyoutItem(null)}
+          onApprove={(item) => { setDetailFlyoutItem(null); setApproveTarget(item); }}
+        />
+      )}
       {modals}
       <EuiGlobalToastList toasts={toasts} dismissToast={removeToast} toastLifeTimeMs={6000} />
     </div>
