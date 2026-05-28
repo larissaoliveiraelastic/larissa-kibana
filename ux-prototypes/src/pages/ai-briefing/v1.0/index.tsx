@@ -3057,7 +3057,8 @@ const AIBriefingContent: React.FC<{
   const [rejectTarget, setRejectTarget] = useState<BriefingItem | null>(null);
   const [modifyTarget, setModifyTarget] = useState<BriefingItem | null>(null);
   const [skillFilter, setSkillFilter] = useState<Skill | null>(null);
-  const [viewFilter, setViewFilter] = useState<'queue' | 'history'>('queue');
+  const [severityFilter, setSeverityFilter] = useState<Severity | null>(null);
+  const [filterVersion, setFilterVersion] = useState<'v1' | 'v2'>('v2');
   const [executingId, setExecutingId] = useState<string | null>(null);
   const [resolvedHistory, setResolvedHistory] = useState<ResolvedHistoryItem[]>([]);
   const [historyFlyoutOpen, setHistoryFlyoutOpen] = useState(false);
@@ -3290,37 +3291,19 @@ const AIBriefingContent: React.FC<{
 
           </div>
           <div style={{ flex: 1, padding: '0 24px 32px' }}>
-            {viewFilter === 'queue' && (
-              <>
-                {/* Queue shows remaining pending items (skip featured + resolved) */}
-                {filteredPending.filter(i => i.id !== featuredItem?.id && i.status === 'pending').length === 0 && !skillFilter
-                  ? null
-                  : filteredPending.filter(i => i.id !== featuredItem?.id && i.status === 'pending').map(item => (
-                      <ItemCard
-                        key={item.id}
-                        item={{ ...item, isNew: item.isNew && !viewedIds.has(item.id) }}
-                        onApprove={setApproveTarget}
-                        onModify={setModifyTarget}
-                        onReject={setRejectTarget}
-                        onViewed={markViewed}
-                      />
-                    ))
-                }
-              </>
-            )}
-            {viewFilter === 'history' && (
-              <div>
-                <EuiText size="xs" color="subdued" style={{ marginBottom: 10 }}>
-                  <strong style={{ textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                    <EuiIcon type="sparkles" size="s" style={{ marginRight: 5, verticalAlign: 'middle' }} />
-                    Handled autonomously ({AUTONOMOUS_ITEMS.length})
-                  </strong>
-                </EuiText>
-                <div style={{ border: `1px solid ${euiTheme.colors.lightShade}`, borderRadius: euiTheme.border.radius.medium, overflow: 'hidden' }}>
-                  {AUTONOMOUS_ITEMS.map(item => <HistoryRow key={item.id} item={{ id: item.id, rank: 0, severity: item.severity, skill: item.skill, confidence: 0, whatWeFound: item.label, whyItMattersNow: item.detail, whatWePropose: '', evidence: [], proposedAction: item.actionTaken, approveLabel: '', approvalText: '', agentIntro: '', status: 'autonomous', resolvedAt: item.resolvedAt }} showExpandedDetail />)}
-                </div>
-              </div>
-            )}
+            <>
+              {/* Queue shows remaining pending items (skip featured + resolved) */}
+              {filteredPending.filter(i => i.id !== featuredItem?.id && i.status === 'pending').map(item => (
+                <ItemCard
+                  key={item.id}
+                  item={{ ...item, isNew: item.isNew && !viewedIds.has(item.id) }}
+                  onApprove={setApproveTarget}
+                  onModify={setModifyTarget}
+                  onReject={setRejectTarget}
+                  onViewed={markViewed}
+                />
+              ))}
+            </>
           </div>
           </div>{/* end scrollable */}
 
@@ -3399,61 +3382,7 @@ const AIBriefingContent: React.FC<{
       `}</style>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
-        {/* ── Tab bar ── */}
-        <div style={{
-          flexShrink: 0,
-          display: 'flex', alignItems: 'flex-end',
-          borderBottom: `1px solid ${euiTheme.colors.lightShade}`,
-          padding: '0 24px',
-          background: euiTheme.colors.emptyShade,
-        }}>
-          {([
-            { id: 'queue' as const, label: 'Briefing', icon: 'securityApp' },
-            { id: 'history' as const, label: 'History', icon: 'clock' },
-          ] as const).map(tab => {
-            const isActive = viewFilter === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setViewFilter(tab.id)}
-                style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 6,
-                  padding: '10px 4px', marginRight: 20,
-                  border: 'none', background: 'transparent',
-                  borderBottom: isActive ? `2px solid ${euiTheme.colors.primary}` : '2px solid transparent',
-                  color: isActive ? euiTheme.colors.primaryText : euiTheme.colors.subduedText,
-                  fontSize: 14, fontWeight: isActive ? 600 : 400,
-                  fontFamily: euiTheme.font.family, cursor: 'pointer',
-                  transition: 'color 0.12s, border-color 0.12s',
-                  marginBottom: -1,
-                }}
-                onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.color = euiTheme.colors.text; }}
-                onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.color = euiTheme.colors.subduedText; }}
-              >
-                <EuiIcon type={tab.icon} size="s" color={isActive ? 'primary' : 'subdued'} />
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
-
         <div style={{ flex: 1, overflowY: 'auto' }}>
-          {viewFilter === 'history' && (
-            <div style={{ padding: '24px 24px 32px' }}>
-              <div style={{ maxWidth: 860, margin: '0 auto' }}>
-                <EuiText size="xs" color="subdued" style={{ marginBottom: 12 }}>
-                  <strong style={{ textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                    <EuiIcon type="sparkles" size="s" style={{ marginRight: 5, verticalAlign: 'middle' }} />
-                    Handled autonomously ({AUTONOMOUS_ITEMS.length})
-                  </strong>
-                </EuiText>
-                <div style={{ border: `1px solid ${euiTheme.colors.lightShade}`, borderRadius: euiTheme.border.radius.medium, overflow: 'hidden' }}>
-                  {AUTONOMOUS_ITEMS.map(item => <HistoryRow key={item.id} item={{ id: item.id, rank: 0, severity: item.severity, skill: item.skill, confidence: 0, whatWeFound: item.label, whyItMattersNow: item.detail, whatWePropose: '', evidence: [], proposedAction: item.actionTaken, approveLabel: '', approvalText: '', agentIntro: '', status: 'autonomous', resolvedAt: item.resolvedAt }} showExpandedDetail />)}
-                </div>
-              </div>
-            </div>
-          )}
-          {viewFilter === 'queue' && (
           <div style={{ padding: '32px 24px 0' }}>
           <div style={{ maxWidth: 860, margin: '0 auto' }}>
 
@@ -3543,20 +3472,56 @@ const AIBriefingContent: React.FC<{
               marginBottom: 24,
               overflow: 'hidden',
             }}>
-              {/* Title + type filter tags + history button */}
-              <div style={{ display: 'flex', alignItems: 'center', padding: '12px 12px 12px 16px', gap: 6, flexWrap: 'wrap' }}>
+              {/* Queue header — label + filters + v1/v2 control + history */}
+              <div style={{ display: 'flex', alignItems: 'center', padding: '10px 12px 10px 16px', gap: 6, flexWrap: 'wrap', borderBottom: `1px solid ${euiTheme.colors.lightShade}` }}>
                 <span style={{ fontSize: 12, color: euiTheme.colors.subduedText, fontWeight: 500, marginRight: 4 }}>
                   Items in your queue
                 </span>
-                {/* Object type filter tags */}
-                {SKILL_TYPES.map(({ skill, label, icon }) => {
+
+                {/* v1 — severity filter cards */}
+                {filterVersion === 'v1' && (
+                  <>
+                    {([
+                      { sev: 'Critical' as Severity, color: SEV_COLOR.Critical, bg: SEV_BG.Critical },
+                      { sev: 'High'     as Severity, color: SEV_COLOR.High,     bg: SEV_BG.High     },
+                      { sev: 'Medium'   as Severity, color: SEV_COLOR.Medium,   bg: SEV_BG.Medium   },
+                      { sev: 'Low'      as Severity, color: SEV_COLOR.Low,      bg: SEV_BG.Low      },
+                    ]).map(({ sev, color, bg }) => {
+                      const count = pendingOnly.filter(i => i.severity === sev).length;
+                      if (count === 0) return null;
+                      const isActive = severityFilter === sev;
+                      return (
+                        <button
+                          key={sev}
+                          onClick={() => setSeverityFilter(prev => prev === sev ? null : sev)}
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 5,
+                            padding: '3px 9px', borderRadius: 12, fontSize: 12, fontWeight: isActive ? 700 : 400,
+                            border: `1px solid ${isActive ? color : euiTheme.colors.lightShade}`,
+                            background: isActive ? bg : euiTheme.colors.emptyShade,
+                            color: isActive ? color : euiTheme.colors.text,
+                            cursor: 'pointer', fontFamily: euiTheme.font.family, transition: 'all 0.12s',
+                          }}
+                          onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.borderColor = color; }}
+                          onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.borderColor = euiTheme.colors.lightShade; }}
+                        >
+                          {sev}
+                          <span style={{ fontSize: 11, fontWeight: 700, color: isActive ? color : euiTheme.colors.subduedText }}>{count}</span>
+                        </button>
+                      );
+                    })}
+                  </>
+                )}
+
+                {/* v2 — skill type filter tags */}
+                {filterVersion === 'v2' && SKILL_TYPES.map(({ skill, label, icon }) => {
                   const count = pendingOnly.filter(i => i.skill === skill).length;
                   if (count === 0) return null;
-                  const isActive = skillFilter === skill && viewFilter === 'queue';
+                  const isActive = skillFilter === skill;
                   return (
                     <button
                       key={skill}
-                      onClick={() => { setSkillFilter(prev => prev === skill ? null : skill); setViewFilter('queue'); }}
+                      onClick={() => setSkillFilter(prev => prev === skill ? null : skill)}
                       style={{
                         display: 'inline-flex', alignItems: 'center', gap: 5,
                         padding: '3px 9px', borderRadius: 12, fontSize: 12, fontWeight: isActive ? 600 : 400,
@@ -3574,7 +3539,29 @@ const AIBriefingContent: React.FC<{
                     </button>
                   );
                 })}
+
                 <div style={{ flex: 1 }} />
+
+                {/* v1 / v2 segmented control */}
+                <div style={{ display: 'inline-flex', padding: 2, borderRadius: 6, background: euiTheme.colors.lightestShade, border: `1px solid ${euiTheme.colors.lightShade}` }}>
+                  {(['v1', 'v2'] as const).map(v => (
+                    <button
+                      key={v}
+                      onClick={() => { setFilterVersion(v); setSkillFilter(null); setSeverityFilter(null); }}
+                      style={{
+                        padding: '2px 10px', borderRadius: 4, border: 'none', cursor: 'pointer',
+                        fontSize: 11, fontWeight: 600, fontFamily: euiTheme.font.family,
+                        background: filterVersion === v ? euiTheme.colors.emptyShade : 'transparent',
+                        color: filterVersion === v ? euiTheme.colors.primaryText : euiTheme.colors.subduedText,
+                        boxShadow: filterVersion === v ? `0 1px 2px rgba(0,0,0,0.08)` : 'none',
+                        transition: 'all 0.12s',
+                      }}
+                    >
+                      {v}
+                    </button>
+                  ))}
+                </div>
+
                 {/* History icon */}
                 <EuiToolTip content="Resolved items" position="top">
                   <button
@@ -3595,14 +3582,17 @@ const AIBriefingContent: React.FC<{
 
 
             {/* ── Queue items — flat evidence rows ── */}
-            {viewFilter === 'queue' && (() => {
+            {(() => {
               // Flat evidence list: all items except top-priority evidence (first of pending[0] sorted by attack first)
               const queueEvidenceRows = pending.flatMap((item, itemIdx) =>
                 [...item.evidence]
                   .sort((a, b) => a.type === 'attack' ? -1 : b.type === 'attack' ? 1 : 0)
                   .map((ev, evIdx) => ({ ev, item, itemIdx, evIdx }))
               ).filter(({ itemIdx, evIdx }) => !(itemIdx === 0 && evIdx <= tpOffset))
-               .filter(({ item }) => skillFilter ? item.skill === skillFilter : true);
+               .filter(({ item }) => filterVersion === 'v1'
+                 ? (severityFilter ? item.severity === severityFilter : true)
+                 : (skillFilter ? item.skill === skillFilter : true)
+               );
 
               if (queueEvidenceRows.length === 0) return (
                 <div style={{ padding: '20px 16px', textAlign: 'center', color: euiTheme.colors.subduedText, fontSize: 13 }}>
@@ -3766,7 +3756,6 @@ const AIBriefingContent: React.FC<{
             <div style={{ height: 24 }} />
           </div>
           </div>
-          )}
         </div>
       </div>
 
