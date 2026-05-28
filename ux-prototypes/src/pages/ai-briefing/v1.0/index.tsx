@@ -3473,48 +3473,13 @@ const AIBriefingContent: React.FC<{
               marginBottom: 24,
               overflow: 'hidden',
             }}>
-              {/* Queue header — label + filters + v1/v2 control + history */}
+              {/* Queue header — label + (v2 skill tags) + history */}
               <div style={{ display: 'flex', alignItems: 'center', padding: '10px 12px 10px 16px', gap: 6, flexWrap: 'wrap', borderBottom: `1px solid ${euiTheme.colors.lightShade}` }}>
                 <span style={{ fontSize: 12, color: euiTheme.colors.subduedText, fontWeight: 500, marginRight: 4 }}>
                   Items in your queue
                 </span>
 
-                {/* v1 — severity filter cards */}
-                {filterVersion === 'v1' && (
-                  <>
-                    {([
-                      { sev: 'Critical' as Severity, color: SEV_COLOR.Critical, bg: SEV_BG.Critical },
-                      { sev: 'High'     as Severity, color: SEV_COLOR.High,     bg: SEV_BG.High     },
-                      { sev: 'Medium'   as Severity, color: SEV_COLOR.Medium,   bg: SEV_BG.Medium   },
-                      { sev: 'Low'      as Severity, color: SEV_COLOR.Low,      bg: SEV_BG.Low      },
-                    ]).map(({ sev, color, bg }) => {
-                      const count = pendingOnly.filter(i => i.severity === sev).length;
-                      if (count === 0) return null;
-                      const isActive = severityFilter === sev;
-                      return (
-                        <button
-                          key={sev}
-                          onClick={() => setSeverityFilter(prev => prev === sev ? null : sev)}
-                          style={{
-                            display: 'inline-flex', alignItems: 'center', gap: 5,
-                            padding: '3px 9px', borderRadius: 12, fontSize: 12, fontWeight: isActive ? 700 : 400,
-                            border: `1px solid ${isActive ? color : euiTheme.colors.lightShade}`,
-                            background: isActive ? bg : euiTheme.colors.emptyShade,
-                            color: isActive ? color : euiTheme.colors.text,
-                            cursor: 'pointer', fontFamily: euiTheme.font.family, transition: 'all 0.12s',
-                          }}
-                          onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.borderColor = color; }}
-                          onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.borderColor = euiTheme.colors.lightShade; }}
-                        >
-                          {sev}
-                          <span style={{ fontSize: 11, fontWeight: 700, color: isActive ? color : euiTheme.colors.subduedText }}>{count}</span>
-                        </button>
-                      );
-                    })}
-                  </>
-                )}
-
-                {/* v2 — skill type filter tags */}
+                {/* v2 only — skill type filter tags */}
                 {filterVersion === 'v2' && SKILL_TYPES.map(({ skill, label, icon }) => {
                   const count = pendingOnly.filter(i => i.skill === skill).length;
                   if (count === 0) return null;
@@ -3561,6 +3526,38 @@ const AIBriefingContent: React.FC<{
                 </EuiToolTip>
               </div>
 
+              {/* v1 — severity stat cards (full row, original style) */}
+              {filterVersion === 'v1' && (
+                <div style={{ display: 'flex', gap: 8, padding: '12px 14px', borderBottom: `1px solid ${euiTheme.colors.lightShade}` }}>
+                  {([
+                    { sev: 'Critical' as Severity, color: SEV_COLOR.Critical, icon: 'securitySignal' },
+                    { sev: 'High'     as Severity, color: SEV_COLOR.High,     icon: 'warning'        },
+                    { sev: 'Medium'   as Severity, color: SEV_COLOR.Medium,   icon: 'dot'            },
+                    { sev: 'Low'      as Severity, color: SEV_COLOR.Low,      icon: 'dot'            },
+                  ]).map(({ sev, color, icon }) => {
+                    const count = pendingOnly.filter(i => i.severity === sev).length;
+                    if (count === 0) return null;
+                    const isActive = severityFilter === sev;
+                    return (
+                      <div
+                        key={sev}
+                        onClick={() => setSeverityFilter(prev => prev === sev ? null : sev)}
+                        style={{
+                          flex: 1, display: 'flex', alignItems: 'center', gap: 8,
+                          padding: '10px 14px', borderRadius: 6, cursor: 'pointer',
+                          border: isActive ? `2px solid ${color}` : `1px solid ${euiTheme.colors.lightShade}`,
+                          background: isActive ? `${color}14` : euiTheme.colors.emptyShade,
+                          transition: 'all 0.15s',
+                        }}
+                      >
+                        <EuiIcon type={icon} size="s" color={color} style={{ flexShrink: 0 }} />
+                        <span style={{ fontSize: 18, fontWeight: 700, color, fontFamily: euiTheme.font.family }}>{count}</span>
+                        <span style={{ fontSize: 11, color: euiTheme.colors.subduedText, fontFamily: euiTheme.font.family, lineHeight: 1.3 }}>{sev}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
 
             {/* ── Queue items — flat evidence rows ── */}
             {(() => {
