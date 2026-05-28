@@ -1942,7 +1942,7 @@ const AgentSidePanel: React.FC<{ query: string; onClose: () => void }> = ({ quer
             <IcAnthropic size={14} />
             <span style={{ fontSize: 11, color: euiTheme.colors.subduedText, fontFamily: euiTheme.font.family }}>Claude Opus 4.6</span>
           </div>
-          <button onClick={handleSend} disabled={!followUp.trim()} style={{ width: 28, height: 28, borderRadius: '50%', border: 'none', background: followUp.trim() ? euiTheme.colors.primary : euiTheme.colors.lightShade, cursor: followUp.trim() ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.15s' }}>
+          <button onClick={() => handleSend()} disabled={!followUp.trim()} style={{ width: 28, height: 28, borderRadius: '50%', border: 'none', background: followUp.trim() ? euiTheme.colors.primary : euiTheme.colors.lightShade, cursor: followUp.trim() ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.15s' }}>
             <EuiIcon type="arrowUp" size="s" style={{ color: followUp.trim() ? '#fff' : euiTheme.colors.subduedText }} />
           </button>
         </div>
@@ -3104,6 +3104,9 @@ const AIBriefingContent: React.FC<{
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
 
   const pendingOnly = items.filter(i => i.status === 'pending');
+  const criticalCount = pendingOnly.filter(i => i.severity === 'Critical').length;
+  const highCount = pendingOnly.filter(i => i.severity === 'High').length;
+  const mediumCount = pendingOnly.filter(i => i.severity === 'Medium').length;
 
   React.useEffect(() => { onPendingChange?.(pendingOnly.length); }, [pendingOnly.length]);
 
