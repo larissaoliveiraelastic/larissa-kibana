@@ -34,6 +34,7 @@ import { useObservedHost } from './hooks/use_observed_host';
 import { EntityType } from '../../../../../common/entity_analytics/types';
 import {
   buildRiskScoreStateFromEntityRecord,
+  getOriginRiskScoreForGraphPreview,
   getRiskFromEntityRecord,
 } from '../../../../flyout/entity_details/shared/entity_store_risk_utils';
 import {
@@ -79,6 +80,15 @@ export interface HostProps {
    * Stable identifier for the host panel context (defaults to `scopeId` or a static fallback).
    */
   contextID?: string;
+  /**
+   * When true, omit the nested Entity Graph preview (side panel already beside the full graph).
+   */
+  hideGraphPreview?: boolean;
+  /**
+   * Compact preview for the Entity Graph side panel — header + summary grid + risk/criticality
+   * only (no nested flyout chrome, Overview/Table tabs, AI summary, anomalies, or footer).
+   */
+  sidePanelPreview?: boolean;
 }
 
 const FIRST_RECORD_PAGINATION = {
@@ -99,6 +109,8 @@ export const Host: FC<HostProps> = memo(function Host({
   entityId: entityIdProp,
   scopeId = '',
   contextID,
+  hideGraphPreview = false,
+  sidePanelPreview = false,
 }) {
   const { services } = useKibana();
   const { uiSettings } = services;
@@ -361,6 +373,7 @@ export const Host: FC<HostProps> = memo(function Host({
             entityId: entityStoreEntityId,
             scopeId,
             entityName: hostName,
+            originRiskScore: getOriginRiskScoreForGraphPreview(observedHost.entityRecord),
             onShowEntity: onShowRelatedEntityFromGraph,
             onShowOriginatingEntity: onShowHost,
             title: hostName,
@@ -393,6 +406,7 @@ export const Host: FC<HostProps> = memo(function Host({
       scopeId,
       panelDisplayEntityId,
       entityStoreEntityId,
+      observedHost.entityRecord,
       onShowHost,
       onShowRelatedEntityFromGraph,
       onShowRelatedEntityFromResolution,
@@ -403,6 +417,68 @@ export const Host: FC<HostProps> = memo(function Host({
     ? ((getRiskFromEntityRecord(observedHost.entityRecord)?.calculated_level ??
         'Unknown') as RiskSeverity)
     : undefined;
+
+  const overviewContent = (
+    <Content
+      identityFields={documentEntityIdentifiers}
+      observedHost={observedHost}
+      riskScoreState={effectiveRiskScoreState}
+      entityRiskScores={entityRiskScores}
+      contextID={safeContextID}
+      scopeId={scopeId}
+      openDetailsPanel={openDetailsPanel}
+      recalculatingScore={recalculatingScore}
+      onAssetCriticalityChange={onAssetCriticalityChanged}
+      isPreviewMode={sidePanelPreview}
+      entityRecord={entityStoreV2Enabled ? observedHost.entityRecord ?? undefined : undefined}
+      skipRiskAndCriticality={noEntityInStore}
+      entityStoreEntityId={entityStoreEntityId}
+      onShowEntity={onShowRelatedEntityFromResolution}
+      hideHeaderIcons
+      hideGraphPreview={hideGraphPreview || sidePanelPreview}
+      hideEntityHighlights={sidePanelPreview}
+      hideAnomalies={sidePanelPreview}
+      hideEntityInsights={sidePanelPreview}
+      showAssetCriticalityAccordion={sidePanelPreview}
+      criticalityFromEntityStore={
+        sidePanelPreview
+          ? entityFromStoreResult.entityRecord?.asset?.criticality ?? null
+          : undefined
+      }
+      onSaveViaEntityStore={
+        sidePanelPreview && onCriticalitySave
+          ? async (updatedRecord) => {
+              await onCriticalitySave(
+                (updatedRecord.asset?.criticality ?? 'unassigned') as CriticalityLevelWithUnassigned
+              );
+            }
+          : undefined
+      }
+      enableGraphAndResolutionNavigation={!sidePanelPreview}
+      riskScoreQueryId={HOST_PANEL_RISK_SCORE_QUERY_ID}
+    />
+  );
+
+  // Graph side panel: HostPanel preview — header + risk + criticality + observed data.
+  if (sidePanelPreview) {
+    return (
+      <div css={{ display: 'flex', flexDirection: 'column', minHeight: 0, height: '100%' }}>
+        <div css={{ flexShrink: 0, padding: '8px 16px 0' }}>
+          <Header
+            hostName={hostName}
+            lastSeen={observedHost.lastSeen}
+            entityId={panelDisplayEntityId}
+            identityFields={documentEntityIdentifiers}
+            // Observed-style header (timestamp + link + Observed badge), matching HostPanel preview.
+            isEntityInStore={false}
+          />
+        </div>
+        <div css={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '16px 16px 16px' }}>
+          {overviewContent}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -429,24 +505,7 @@ export const Host: FC<HostProps> = memo(function Host({
         {tabs && selectedTabId === TABLE_TAB_ID && observedHost.entityRecord ? (
           <EntityStoreTableTab entityRecord={observedHost.entityRecord} />
         ) : (
-          <Content
-            identityFields={documentEntityIdentifiers}
-            observedHost={observedHost}
-            riskScoreState={effectiveRiskScoreState}
-            entityRiskScores={entityRiskScores}
-            contextID={safeContextID}
-            scopeId={scopeId}
-            openDetailsPanel={openDetailsPanel}
-            recalculatingScore={recalculatingScore}
-            onAssetCriticalityChange={onAssetCriticalityChanged}
-            isPreviewMode={false}
-            entityRecord={entityStoreV2Enabled ? observedHost.entityRecord ?? undefined : undefined}
-            skipRiskAndCriticality={noEntityInStore}
-            entityStoreEntityId={entityStoreEntityId}
-            onShowEntity={onShowRelatedEntityFromResolution}
-            hideHeaderIcons
-            riskScoreQueryId={HOST_PANEL_RISK_SCORE_QUERY_ID}
-          />
+          overviewContent
         )}
       </EuiFlyoutBody>
       {assetInventoryEnabled && (

@@ -26,7 +26,7 @@ import { useCountryFlagsPopover } from '../node/country_flags/country_flags';
 import { useEventDetailsPopover } from '../popovers/details/use_event_details_popover';
 import type { DocumentAnalysisOutput } from '../node/label_node/analyze_documents';
 import { analyzeDocuments } from '../node/label_node/analyze_documents';
-import { EVENT_ID, GRAPH_NODES_LIMIT, TOGGLE_SEARCH_BAR_STORAGE_KEY } from '../../common/constants';
+import { EVENT_ID, EVENT_ACTION, GRAPH_NODES_LIMIT, TOGGLE_SEARCH_BAR_STORAGE_KEY } from '../../common/constants';
 import { Actions } from '../controls/actions';
 import { BottomBar } from '../controls/bottom_bar';
 import { DEFAULT_GRAPH_FILTERS } from '../controls/apply_filters_popover';
@@ -35,14 +35,14 @@ import { GraphFiltersProvider } from '../graph/graph_filters_context';
 import { AnimatedSearchBarContainer, useBorder } from './styles';
 import { GRAPH_PANEL_INSET } from '../constants';
 import { CONTROLLED_BY_GRAPH_INVESTIGATION_FILTER, addFilter } from '../filters/search_filters';
+import { emitFilterToggle, isFilterActiveForScope } from '../filters/filter_store';
 import { useEntityNodeExpandPopover } from '../popovers/node_expand/use_entity_node_expand_popover';
 import { useLabelNodeExpandPopover } from '../popovers/node_expand/use_label_node_expand_popover';
 import type { EntityActionItem, NodeProps, NodeViewModel } from '../types';
-import { isLabelNode, isRelationshipNode, showErrorToast } from '../utils';
+import { isLabelNode, isRelationshipNode, showErrorToast, showStackedShape } from '../utils';
 import { GRAPH_SCOPE_ID } from '../constants';
 import { useGraphFilters } from '../filters/use_graph_filters';
 import { getEntityCardWidthForLabels } from '../node/card_node';
-
 const useGraphPopovers = ({
   scopeId,
   onOpenEventPreview,
@@ -247,6 +247,30 @@ export interface GraphInvestigationProps {
    * - `colored`: risk-tinted icon/header + compact zoom-out card
    */
   entityStyleMode?: 'default' | 'colored';
+
+  /**
+   * Flyout / Entity Store risk for the origin entity (`calculated_score_norm`).
+   * Applied to the origin node so expanded graph matches table + preview.
+   * - `number` → origin badge uses this score
+   * - `null` → Unknown (no score badge)
+   * - `undefined` → keep graph API / mock node riskScore
+   */
+  originRiskScore?: number | null;
+
+  /**
+   * Display name of the investigation origin — matches node label when entity.id ≠ name.
+   */
+  originEntityName?: string;
+
+  /**
+   * Graph node ids kept selected while entity details are open beside the graph.
+   */
+  selectedNodeIds?: string[];
+
+  /**
+   * Called when the user clicks empty canvas — clear details selection / close side panel.
+   */
+  onPaneClick?: () => void;
 }
 
 const EMPTY_QUERY: Query = { query: '', language: 'kuery' } as const;
@@ -270,9 +294,13 @@ export const GraphInvestigation = memo<GraphInvestigationProps>(
     searchControlsVariant = 'unified',
     entityActionsMode = 'hover',
     entityStyleMode = 'default',
+    originRiskScore,
+    originEntityName,
     onInvestigateInTimeline,
     onOpenEventPreview,
     onOpenNetworkPreview,
+    selectedNodeIds,
+    onPaneClick,
   }: GraphInvestigationProps) => {
     const emptyEntityIds = useMemo(() => [], []);
 
@@ -350,12 +378,13 @@ export const GraphInvestigation = memo<GraphInvestigationProps>(
         },
         nodesLimit: GRAPH_NODES_LIMIT,
       },
+      originRiskScore,
+      originEntityName,
       options: {
         refetchOnWindowFocus: false,
         keepPreviousData: true,
       },
     });
-
     useEffect(() => {
       const toasts = notifications?.toasts;
       if (isError && error && toasts) {
@@ -384,6 +413,13 @@ export const GraphInvestigation = memo<GraphInvestigationProps>(
     const labelExpandButtonClickHandler = (...args: unknown[]) =>
       openPopoverCallback(labelExpandPopover.onNodeExpandButtonClick, ...args);
 
+    const createRelatedEventsClickHandler = useCallback(
+      (actionLabel: string) => () => {
+        const active = isFilterActiveForScope(scopeId, EVENT_ACTION, actionLabel);
+        emitFilterToggle(scopeId, EVENT_ACTION, actionLabel, active ? 'hide' : 'show');
+      },
+      [scopeId]
+    );
     const closeGraphExpandPopovers = useCallback(() => {
       nodeExpandPopover.actions.closePopover();
       labelExpandPopover.actions.closePopover();
@@ -431,6 +467,7 @@ export const GraphInvestigation = memo<GraphInvestigationProps>(
       const eventIds = new Set<string>();
       const alertIds = new Set<string>();
       const entityIdsWithOrigin = new Set<string>();
+      const strip = (id: string) => id.replace(/^(user|host|service):/i, '');
 
       // Add origin event IDs (for centering when opening from events flyout)
       originEventIds?.forEach(({ id, isAlert }) => {
@@ -445,15 +482,22 @@ export const GraphInvestigation = memo<GraphInvestigationProps>(
       entityIds?.forEach(({ id, isOrigin }) => {
         if (isOrigin) {
           entityIdsWithOrigin.add(id);
+          entityIdsWithOrigin.add(strip(id));
         }
       });
+
+      // Host/user/service display name — graph node id is often the name, not entity.id.
+      if (originEntityName) {
+        entityIdsWithOrigin.add(originEntityName);
+        entityIdsWithOrigin.add(strip(originEntityName));
+      }
 
       return {
         originEventIdsSet: eventIds,
         originAlertIdsSet: alertIds,
         originEntityIdsSet: entityIdsWithOrigin,
       };
-    }, [originEventIds, entityIds]);
+    }, [originEventIds, entityIds, originEntityName]);
 
     // Build a map of relationship node IDs to their source entities (from edges)
     // This allows us to determine if a relationship node is connected to an origin entity
@@ -471,52 +515,102 @@ export const GraphInvestigation = memo<GraphInvestigationProps>(
     }, [data?.edges]);
 
     const nodes = useMemo(() => {
-      const entityCardWidth = getEntityCardWidthForLabels(
-        (data?.nodes ?? [])
-          .filter(isEntityNode)
-          .map((node) => node.label ?? node.id)
-      );
-
       return (
         data?.nodes.map((node) => {
           if (isEntityNode(node)) {
             const nodeIps = node.ips || [];
             const nodeCountryCodes = node.countryCodes || [];
             const { nodeMetadata } = graphFilters;
+            // Entity metadata (Display / hover layers) applies to single entities only —
+            // group cards keep header chrome (count, risk range) but no metadata body.
+            const isGroupEntity = showStackedShape(node.count);
+            const showNodeMetadata = !isGroupEntity;
+            const entityCardLabel = isGroupEntity
+              ? node.subType ?? node.label ?? node.id
+              : node.label ?? node.id;
+            // Per-node width so short titles (e.g. AWS S3 Bucket) don't inherit empty
+            // space from a long origin hostname elsewhere in the graph.
+            const entityCardWidth = getEntityCardWidthForLabels([entityCardLabel]);
+            const isOrigin =
+              Boolean((node as { isOrigin?: boolean }).isOrigin) ||
+              originEntityIdsSet.has(node.id) ||
+              originEntityIdsSet.has(node.id.replace(/^(user|host|service):/i, '')) ||
+              (Boolean(node.label) &&
+                (originEntityIdsSet.has(node.label!) ||
+                  originEntityIdsSet.has(node.label!.replace(/^(user|host|service):/i, '')))) ||
+              (Array.isArray(node.documentsData) &&
+                node.documentsData.some((doc) => {
+                  const eid =
+                    ('entity' in doc && doc.entity && typeof doc.entity === 'object'
+                      ? (doc.entity as { id?: string }).id
+                      : undefined) ?? doc.id;
+                  const ename =
+                    'entity' in doc && doc.entity && typeof doc.entity === 'object'
+                      ? (doc.entity as { name?: string }).name
+                      : undefined;
+                  return (
+                    (Boolean(eid) &&
+                      (originEntityIdsSet.has(eid) ||
+                        originEntityIdsSet.has(eid.replace(/^(user|host|service):/i, '')))) ||
+                    (Boolean(ename) &&
+                      (originEntityIdsSet.has(ename!) ||
+                        originEntityIdsSet.has(ename!.replace(/^(user|host|service):/i, ''))))
+                  );
+                }));
+            const enrichedEntityData = { ...node, isOrigin };
+            // Align origin badge with flyout Entity risk / table / preview.
+            const resolvedOriginRisk =
+              isOrigin && originRiskScore !== undefined
+                ? originRiskScore === null
+                  ? undefined
+                  : originRiskScore
+                : node.riskScore;
             return {
-              ...node,
-              isOrigin: originEntityIdsSet.has(node.id),
+              ...enrichedEntityData,
               // Risk score badge is always shown in the card header (not a Layers toggle).
               // Entity ID is not exposed in Layers and is never shown on the card.
-              // Group cards show the same Node metadata toggles as singles (with +N
-              // counters and asset-criticality range).
               showEntityId: false,
-              ips: nodeMetadata.ipAddress ? node.ips : undefined,
-              countryCodes: nodeMetadata.geolocation ? node.countryCodes : undefined,
-              sources: nodeMetadata.source ? node.sources : undefined,
-              assetCriticality: nodeMetadata.assetCriticality
-                ? node.assetCriticality
+              // Group header always needs subtype (title); Display toggles only gate
+              // metadata body fields on single entities.
+              subType: isGroupEntity
+                ? node.subType ?? node.label
+                : showNodeMetadata && nodeMetadata.subType
+                ? node.subType
                 : undefined,
-              assetCriticalityCounts: nodeMetadata.assetCriticality
-                ? node.assetCriticalityCounts
-                : undefined,
-              riskScore: node.riskScore,
-              riskScoreMin: node.riskScoreMin,
-              riskScoreMax: node.riskScoreMax,
+              ips: showNodeMetadata && nodeMetadata.ipAddress ? node.ips : undefined,
+              countryCodes:
+                showNodeMetadata && nodeMetadata.geolocation
+                  ? node.countryCodes
+                  : undefined,
+              sources: showNodeMetadata && nodeMetadata.source ? node.sources : undefined,
+              assetCriticality:
+                showNodeMetadata && nodeMetadata.assetCriticality
+                  ? node.assetCriticality
+                  : undefined,
+              assetCriticalityCounts:
+                showNodeMetadata && nodeMetadata.assetCriticality
+                  ? node.assetCriticalityCounts
+                  : undefined,
+              riskScore: resolvedOriginRisk,
+              riskScoreMin:
+                isOrigin && originRiskScore !== undefined ? undefined : node.riskScoreMin,
+              riskScoreMax:
+                isOrigin && originRiskScore !== undefined ? undefined : node.riskScoreMax,
               expandButtonClick: nodeExpandButtonClickHandler,
               closeEntityActions: () => nodeExpandPopover.actions.closePopover(),
               getEntityActionItems: () =>
                 nodeExpandPopover
-                  .getActionItems({ id: node.id, data: node } as NodeProps)
+                  // Pass enriched data so expand/hover actions see isOrigin (disable hide-relationships).
+                  .getActionItems({ id: node.id, data: enrichedEntityData } as NodeProps)
                   .filter((item): item is EntityActionItem => item.type === 'item'),
               entityActionsMode,
               entityStyleMode,
               cardWidth: entityCardWidth,
               ipClickHandler: createIpClickHandler(
-                nodeMetadata.ipAddress ? nodeIps : []
+                showNodeMetadata && nodeMetadata.ipAddress ? nodeIps : []
               ),
               countryClickHandler: createCountryClickHandler(
-                nodeMetadata.geolocation ? nodeCountryCodes : []
+                showNodeMetadata && nodeMetadata.geolocation ? nodeCountryCodes : []
               ),
             };
           } else if (isLabelNode(node)) {
@@ -541,6 +635,8 @@ export const GraphInvestigation = memo<GraphInvestigationProps>(
               isOrigin: docEventIds.some((id) => originEventIdsSet.has(id)),
               isOriginAlert: docEventIds.some((id) => originAlertIdsSet.has(id)),
               expandButtonClick: labelExpandButtonClickHandler,
+              relatedEventsClickHandler: createRelatedEventsClickHandler(text),
+              relatedEventsActive: isFilterActiveForScope(scopeId, EVENT_ACTION, text),
               ipClickHandler: createIpClickHandler(
                 eventAlertMetadata.sourceIpAddress ? nodeIps : []
               ),
@@ -553,13 +649,15 @@ export const GraphInvestigation = memo<GraphInvestigationProps>(
             // Check if any source entity connected to this relationship node is an origin
             const sources = relationshipNodeSources.get(node.id) || [];
             const isOrigin = sources.some((sourceId) => originEntityIdsSet.has(sourceId));
+            const text = node.label ? node.label : node.id;
             return {
               ...node,
               ...(isOrigin && { isOrigin }),
               expandButtonClick: labelExpandButtonClickHandler,
+              relatedEventsClickHandler: createRelatedEventsClickHandler(text),
+              relatedEventsActive: isFilterActiveForScope(scopeId, EVENT_ACTION, text),
             };
           }
-
           return { ...node };
         }) ?? []
       );
@@ -569,10 +667,13 @@ export const GraphInvestigation = memo<GraphInvestigationProps>(
       originEventIdsSet,
       originAlertIdsSet,
       originEntityIdsSet,
+      originRiskScore,
       relationshipNodeSources,
       graphFilters,
       entityActionsMode,
       entityStyleMode,
+      createRelatedEventsClickHandler,
+      scopeId,
     ]);
 
     const searchFilterCounter = useMemo(() => {
@@ -626,6 +727,8 @@ export const GraphInvestigation = memo<GraphInvestigationProps>(
               height: 100%;
               overflow: hidden;
 
+              /* Override xyflow's default 15px panel margin so all chrome
+                 (zoom, bottom bar, minimap, actions) shares GRAPH_PANEL_INSET. */
               .react-flow__panel.top.right {
                 margin-top: ${GRAPH_PANEL_INSET}px;
                 margin-right: ${GRAPH_PANEL_INSET}px;
@@ -637,6 +740,9 @@ export const GraphInvestigation = memo<GraphInvestigationProps>(
 
               .react-flow__panel.bottom.center {
                 overflow: visible;
+                margin: ${GRAPH_PANEL_INSET}px;
+                /* Equal L/R margins keep translateX(-50%) optically centered. */
+                transform: translateX(-50%);
               }
 
               .react-flow__panel.bottom.right {
@@ -708,6 +814,8 @@ export const GraphInvestigation = memo<GraphInvestigationProps>(
                 isLocked={isPopoverOpen}
                 showMinimap={true}
                 highlightOriginsOnly={graphFilters.highlightOriginsOnly}
+                selectedNodeIds={selectedNodeIds}
+                onPaneClick={onPaneClick}
               >
                 <GraphExpandPopoverSync onClosePopovers={closeGraphExpandPopovers} />
                 <Panel
@@ -725,7 +833,13 @@ export const GraphInvestigation = memo<GraphInvestigationProps>(
                     searchWarningMessage={searchWarningMessage}
                   />
                 </Panel>
-                <Panel position="bottom-center" style={{ overflow: 'visible' }}>
+                <Panel
+                  position="bottom-center"
+                  style={{
+                    overflow: 'visible',
+                    margin: GRAPH_PANEL_INSET,
+                  }}
+                >
                   <BottomBar
                     showInvestigateInTimeline={showInvestigateInTimeline}
                     onInvestigateInTimeline={onInvestigateInTimelineCallback}

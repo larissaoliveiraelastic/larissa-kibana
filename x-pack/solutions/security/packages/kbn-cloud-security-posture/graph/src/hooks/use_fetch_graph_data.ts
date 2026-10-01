@@ -22,12 +22,21 @@ import { EVENT_GRAPH_VISUALIZATION_API } from '../common/constants';
 // =============================================================================
 // DEV MOCK CONFIGURATION
 // =============================================================================
-// Set USE_MOCK_GRAPH_DATA to true to bypass the API and render mock graphs.
-// Each entity gets a different graph scenario automatically based on its ID.
+// Hybrid local mode:
+// - Design fixtures (seed Entity Analytics hosts/users) → mock graph with
+//   risk ladder + 8 relationships (preview ≡ expanded).
+// - Everything else (doc-generator / real Entity Store) → real graph API.
 // =============================================================================
 
+/** Master switch — when false, all graph requests hit the real API. */
 const USE_MOCK_GRAPH_DATA = true; // LOCAL DEV ONLY — hidden from git via skip-worktree
 
+/**
+ * When true (and {@link USE_MOCK_GRAPH_DATA} is true), only Entity Analytics
+ * design-fixture IDs / named scenario map entries use mocks. Doc-generator
+ * entities fall through to the live graph API so the table can mix both.
+ */
+const MOCK_DESIGN_FIXTURES_ONLY = true;
 // =============================================================================
 // TYPES & HELPERS
 // =============================================================================
@@ -58,6 +67,8 @@ interface EnhancedNode {
   ips?: string[];
   countryCodes?: string[];
   sources?: string[];
+  /** Card body Sub-type — only rendered when Node metadata → Sub-type is on. */
+  subType?: string;
   tag?: string;
   documentsData?: Array<{ id: string; type: string; entity?: Record<string, unknown> }>;
   assetCriticality?: string;
@@ -177,6 +188,7 @@ const scenarioLargeGraph = (): GraphResponse =>
       icon: 'storage',
       tag: 'Host',
       count: 5,
+      subType: 'Windows',
       ips: ['213.180.204.3', '10.0.0.5'],
       countryCodes: ['RU', 'US'],
       assetCriticalityCounts: { extreme: 152, high: 1648, medium: 1982, low: 542 },
@@ -1015,6 +1027,22 @@ const mockEntityDocuments = (
   },
 ];
 
+/** Per-member docs so group nodes open the grouped-entities listing (not single-entity). */
+const mockGroupMemberDocuments = (
+  members: Array<{ id: string; name: string; risk: number; engineType?: string; entityType?: string }>
+): EnhancedNode['documentsData'] =>
+  members.map((member) => ({
+    id: member.id,
+    type: DOCUMENT_TYPE_ENTITY,
+    entity: {
+      name: member.name,
+      availableInEntityStore: true,
+      engine_type: member.engineType ?? 'host',
+      type: member.entityType ?? 'Host',
+      sourceFields: { risk: member.risk },
+    },
+  }));
+
 // Dev graph preview — fixed origin IDs match dev_graph_page originEventIds / entityIds
 const DEV_ORIGIN_ENTITY_ID = 'john.doe';
 const DEV_ORIGIN_EVENT_ID = 'dev-event-2';
@@ -1262,11 +1290,21 @@ const SCENARIO_FUNCTIONS = [
 ];
 
 /**
- * Host-centric preview graph aligned with Entity Analytics seed risk scores.
- * Origin is a single high-risk host; neighbors are **subtype group nodes**
- * (EC2 / S3 / guests) — matching the Graph preview narrative
- * (origin → 8 relationships → 3 group cards with counts + risk).
+ * Host-centric graph shared by Graph **preview** and **expanded** Entity Graph.
+ *
+ * Contract (do not break):
+ * - Preview pill “N Relationships” must equal the number of connector nodes
+ *   below (relationship + event/alert labels — currently
+ *   {@link HOST_RISK_PREVIEW_RELATIONSHIP_COUNT}).
+ * - Expanded graph must render those same N relationship/event pills — never a
+ *   denser scenario (LargeGraph / Dense / Complex) for the same entity.
+ * - Neighbors are subtype **group** cards only (EC2 / S3 / GCP) — same cards
+ *   preview shows on the right.
+ * - Includes relationship, event, and alert pills so designers can review all
+ *   three connector types on one origin entity.
  */
+const HOST_RISK_PREVIEW_RELATIONSHIP_COUNT = 8;
+
 const scenarioHostRiskPreview = (
   originId: string,
   originLabel: string,
@@ -1283,68 +1321,149 @@ const scenarioHostRiskPreview = (
   ].slice(0, 100);
   const manySources = (primary: string, extras: string[]): string[] => [primary, ...extras];
 
-  // Groups by entity subtype (not type) — EC2 vs S3 vs guests, all Host type.
-  // All group cards use the stacked-cards glyph (`group_entities`).
+  // Groups by official entity subtype (Host type) — names from the Entity
+  // subtype taxonomy (e.g. AWS EC2 Instance, AWS S3 Bucket, GCP Compute Instance).
+  // documentsData must list each member (count > 1) so click opens the group listing.
   const subtypeGroups = [
     {
       id: `${originId}__group-ec2`,
-      label: 'EC2 instances',
+      label: 'AWS EC2 Instance',
+      subType: 'AWS EC2 Instance',
       count: 3,
-      icon: 'group_entities',
+      icon: 'aws_ec2',
       riskScoreMin: 90.01,
       riskScoreMax: 95.5,
       assetCriticalityCounts: { extreme: 1, high: 2 },
       ips: manyIps('10.0.0.11'),
       countryCodes: manyCountries('US'),
       sources: manySources('Active Directory', ['Endpoint', 'CloudTrail']),
+      members: [
+        { id: 'host:ec2-prod-web-01', name: 'ec2-prod-web-01', risk: 95.5 },
+        { id: 'host:ec2-prod-api-02', name: 'ec2-prod-api-02', risk: 92.0 },
+        { id: 'host:ec2-staging-03', name: 'ec2-staging-03', risk: 90.01 },
+      ],
     },
     {
       id: `${originId}__group-s3`,
-      label: 'S3 buckets',
+      label: 'AWS S3 Bucket',
+      subType: 'AWS S3 Bucket',
       count: 2,
-      icon: 'group_entities',
+      icon: 'aws_s3',
       riskScoreMin: 70.0,
       riskScoreMax: 85.0,
       assetCriticalityCounts: { high: 1, medium: 1 },
       ips: manyIps('10.0.1.21'),
       countryCodes: manyCountries('US'),
       sources: manySources('AWS', ['CloudTrail']),
+      members: [
+        { id: 'host:s3-logs-prod', name: 's3-logs-prod', risk: 85.0 },
+        { id: 'host:s3-backups-dev', name: 's3-backups-dev', risk: 70.0 },
+      ],
     },
     {
-      id: `${originId}__group-macbook`,
-      label: 'Macbook Entities',
+      id: `${originId}__group-gcp-compute`,
+      label: 'GCP Compute Instance',
+      subType: 'GCP Compute Instance',
       count: 3,
-      icon: 'group_entities',
-      riskScoreMin: 50.0,
-      riskScoreMax: 90.01,
+      icon: 'gcp_compute',
+      riskScoreMin: 50.01,
+      riskScoreMax: 98.01,
       assetCriticalityCounts: { extreme: 1, high: 2 },
       ips: manyIps('10.128.0.93'),
       countryCodes: ['US', 'BR', ...manyCountries('BR').slice(2)],
       sources: manySources('Active Directory', ['Endpoint', 'Osquery']),
+      members: [
+        { id: 'host:gcp-compute-prod-01', name: 'gcp-compute-prod-01', risk: 98.01 },
+        { id: 'host:gcp-compute-prod-02', name: 'gcp-compute-prod-02', risk: 90.01 },
+        { id: 'host:gcp-compute-dev-01', name: 'gcp-compute-dev-01', risk: 50.01 },
+      ],
     },
   ];
 
-  // Eight relationship edges across the three subtype groups → preview “8 rela…”.
-  const relationshipLabels = [
-    'Communicates with',
-    'Depends on',
-    'Owns',
-    'Accesses frequently',
-    'Depends on',
-    'Communicates with',
-    'Reports to',
-    'Communicates with',
+  // Mix of relationship + event + alert connectors (total must stay at
+  // HOST_RISK_PREVIEW_RELATIONSHIP_COUNT so preview “8 rela…” ≡ expanded).
+  const connectors: EnhancedNode[] = [
+    {
+      id: `${originId}__rel-0`,
+      source: originId,
+      target: subtypeGroups[0].id,
+      label: 'Communicates with',
+      shape: 'relationship',
+    },
+    {
+      id: `${originId}__rel-1`,
+      source: originId,
+      target: subtypeGroups[0].id,
+      label: 'Depends on',
+      shape: 'relationship',
+    },
+    {
+      id: `${originId}__rel-2`,
+      source: originId,
+      target: subtypeGroups[0].id,
+      label: 'Owns',
+      shape: 'relationship',
+    },
+    {
+      id: `${originId}__rel-3`,
+      source: originId,
+      target: subtypeGroups[1].id,
+      label: 'Accesses frequently',
+      shape: 'relationship',
+    },
+    {
+      id: `${originId}__rel-4`,
+      source: originId,
+      target: subtypeGroups[2].id,
+      label: 'Reports to',
+      shape: 'relationship',
+    },
+    // Event pills (label shape + event documents)
+    {
+      id: `${originId}__evt-process`,
+      source: originId,
+      target: subtypeGroups[1].id,
+      label: 'process_started',
+      color: 'primary',
+      shape: 'label',
+      uniqueEventsCount: 14,
+      ips: ['10.128.0.93'],
+      countryCodes: ['US'],
+      documentsData: [mockEventDocument(`${originId}__evt-process-doc`)],
+    },
+    {
+      id: `${originId}__evt-network`,
+      source: originId,
+      target: subtypeGroups[2].id,
+      label: 'network_connection',
+      color: 'primary',
+      shape: 'label',
+      uniqueEventsCount: 6,
+      ips: ['10.128.0.93'],
+      countryCodes: ['US'],
+      documentsData: [mockEventDocument(`${originId}__evt-network-doc`)],
+    },
+    // Alert pill (label shape + alert documents)
+    {
+      id: `${originId}__alert-malware`,
+      source: originId,
+      target: subtypeGroups[1].id,
+      label: 'Malware Detection',
+      color: 'danger',
+      shape: 'label',
+      uniqueEventsCount: 2,
+      uniqueAlertsCount: 3,
+      ips: ['10.128.0.93'],
+      countryCodes: ['US'],
+      documentsData: [mockAlertDocument(`${originId}__alert-malware-doc`)],
+    },
   ];
-  const relationshipTargets = [
-    subtypeGroups[0].id,
-    subtypeGroups[0].id,
-    subtypeGroups[0].id,
-    subtypeGroups[1].id,
-    subtypeGroups[1].id,
-    subtypeGroups[1].id,
-    subtypeGroups[2].id,
-    subtypeGroups[2].id,
-  ];
+
+  if (connectors.length !== HOST_RISK_PREVIEW_RELATIONSHIP_COUNT) {
+    throw new Error(
+      `scenarioHostRiskPreview must declare ${HOST_RISK_PREVIEW_RELATIONSHIP_COUNT} connectors (relationships + events + alerts)`
+    );
+  }
 
   return extractEdges([
     {
@@ -1354,6 +1473,8 @@ const scenarioHostRiskPreview = (
       shape: 'hexagon',
       icon: 'storage',
       tag: 'Host',
+      // Single-entity Sub-type (Display toggle) — Host taxonomy subtype for endpoints.
+      subType: 'Endpoint Host',
       ips: ['10.128.0.93', '10.128.0.94'],
       countryCodes: ['US'],
       sources: ['Endpoint', 'System'],
@@ -1364,6 +1485,7 @@ const scenarioHostRiskPreview = (
     ...subtypeGroups.map((group) => ({
       id: group.id,
       label: group.label,
+      subType: group.subType,
       color: 'primary' as const,
       shape: 'hexagon' as const,
       icon: group.icon,
@@ -1375,15 +1497,9 @@ const scenarioHostRiskPreview = (
       assetCriticalityCounts: group.assetCriticalityCounts,
       riskScoreMin: group.riskScoreMin,
       riskScoreMax: group.riskScoreMax,
-      documentsData: mockEntityDocuments(group.id, 'host', 'Host'),
+      documentsData: mockGroupMemberDocuments(group.members),
     })),
-    ...relationshipLabels.map((label, index) => ({
-      id: `${originId}__rel-${index}`,
-      source: originId,
-      target: relationshipTargets[index],
-      label,
-      shape: 'relationship' as const,
-    })),
+    ...connectors,
   ]);
 };
 
@@ -1391,6 +1507,110 @@ const scenarioHostRiskPreview = (
 const MOCK_ENTITY_RISK_SAMPLES = [95.5, 90.01, 85.0, 75.0, 55.2, 48.0, 28.1, 12.0] as const;
 
 const ENTITY_NODE_SHAPES = new Set(['hexagon', 'pentagon', 'ellipse', 'rectangle', 'diamond']);
+
+const stripEntityPrefix = (id: string): string => id.replace(/^(user|host|service):/i, '');
+
+/** Collect origin entity ids (with and without type prefix) from a graph request. */
+const collectOriginEntityIds = (req: GraphRequest): Set<string> => {
+  const ids = new Set<string>();
+  const entityIds = req.query.entityIds;
+  if (!entityIds?.length) return ids;
+
+  const flagged = entityIds.filter((e) => e.isOrigin);
+  const origins = flagged.length > 0 ? flagged : [entityIds[0]];
+  for (const { id } of origins) {
+    ids.add(id);
+    ids.add(stripEntityPrefix(id));
+  }
+  return ids;
+};
+
+const nodeMatchesOriginIds = (
+  node: {
+    id: string;
+    label?: string;
+    documentsData?: Array<{ id?: string; entity?: { id?: string; name?: string } }>;
+  },
+  originIds: Set<string>
+): boolean => {
+  if (originIds.has(node.id) || originIds.has(stripEntityPrefix(node.id))) {
+    return true;
+  }
+  if (node.label && (originIds.has(node.label) || originIds.has(stripEntityPrefix(node.label)))) {
+    return true;
+  }
+  for (const doc of node.documentsData ?? []) {
+    const eid = doc.entity?.id ?? doc.id;
+    if (eid && (originIds.has(eid) || originIds.has(stripEntityPrefix(eid)))) {
+      return true;
+    }
+    const ename = doc.entity?.name;
+    if (ename && (originIds.has(ename) || originIds.has(stripEntityPrefix(ename)))) {
+      return true;
+    }
+  }
+  return false;
+};
+
+/**
+ * Mark investigation origin entity nodes (`isOrigin`) and optionally align risk score
+ * with flyout / table / preview. Always tags origin so hide-relationships stays disabled.
+ */
+const applyOriginRiskScoreToGraph = (
+  graph: GraphResponse,
+  req: GraphRequest,
+  originRiskScore: number | null | undefined,
+  originEntityName?: string
+): GraphResponse => {
+  const originIds = collectOriginEntityIds(req);
+  if (originEntityName) {
+    originIds.add(originEntityName);
+    originIds.add(stripEntityPrefix(originEntityName));
+  }
+  if (originIds.size === 0) return graph;
+
+  return {
+    ...graph,
+    nodes: graph.nodes.map((node) => {
+      const shape = (node as { shape?: string }).shape;
+      if (!shape || !ENTITY_NODE_SHAPES.has(shape)) return node;
+      if (
+        !nodeMatchesOriginIds(
+          node as { id: string; label?: string; documentsData?: Array<{ id?: string }> },
+          originIds
+        )
+      ) {
+        return node;
+      }
+
+      if (originRiskScore === null) {
+        const {
+          riskScore: _rs,
+          riskScoreMin: _min,
+          riskScoreMax: _max,
+          ...rest
+        } = node as typeof node & {
+          riskScore?: number;
+          riskScoreMin?: number;
+          riskScoreMax?: number;
+        };
+        return { ...rest, isOrigin: true };
+      }
+
+      if (originRiskScore === undefined) {
+        return { ...node, isOrigin: true };
+      }
+
+      return {
+        ...node,
+        isOrigin: true,
+        riskScore: originRiskScore,
+        riskScoreMin: undefined,
+        riskScoreMax: undefined,
+      };
+    }),
+  };
+};
 
 /**
  * Ensures every mock entity node has a risk score so badge colors are visible.
@@ -1429,8 +1649,10 @@ const hashString = (value: string): number =>
   value.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
 
 // Named overrides for specific entities — add your entity IDs here for fine control
+// Entity Analytics seed IDs MUST use scenarioHostRiskPreview (preview ≡ expanded counts).
 const ENTITY_SCENARIO_MAP: Record<string, (id: string) => GraphResponse> = {
-  'service:auth-service': (id) => scenarioLargeGraph(),
+  'service:auth-service': () =>
+    scenarioHostRiskPreview('service:auth-service', 'auth-service', 78.0),
   'service:payment-api': (id) => scenarioFanout(id),
   'service:user-management': (id) => scenarioAttack(id),
   'service:data-pipeline': (id) => scenarioRelationships(id),
@@ -1450,8 +1672,10 @@ const ENTITY_SCENARIO_MAP: Record<string, (id: string) => GraphResponse> = {
   'host:mail-server-01': (id) => scenarioDense(),
   'host:api-server-03': (id) => scenarioLargeGraph(),
   'host:monitoring-host': (id) => scenarioAttack(id),
-  [DEV_ORIGIN_ENTITY_ID]: () => scenarioComplexPreview(),
-  'user:john.doe': () => scenarioComplexPreview(),
+  // Dev graph page + Entity Analytics user seed — same host-risk narrative (8 rels / 3 groups)
+  [DEV_ORIGIN_ENTITY_ID]: () =>
+    scenarioHostRiskPreview(DEV_ORIGIN_ENTITY_ID, 'john.doe', 95.5),
+  'user:john.doe': () => scenarioHostRiskPreview('user:john.doe', 'john.doe', 95.5),
   // Entity Analytics seed — origin riskScore MUST match flyout Entity risk score
   'edge-sec-ubuntu-2004-obtc-estec-0': () =>
     scenarioHostRiskPreview(
@@ -1478,16 +1702,14 @@ const ENTITY_SCENARIO_MAP: Record<string, (id: string) => GraphResponse> = {
   'guest-unknown': () => scenarioHostRiskPreview('host:guest-unknown', 'guest-unknown', 12.0),
   'host:guest-unknown': () => scenarioHostRiskPreview('host:guest-unknown', 'guest-unknown', 12.0),
 };
-
 // Dev graph page (/app/security/dev-graph) — screenshot layout preview
 const DEV_PREVIEW_ENTITY_IDS = new Set([DEV_ORIGIN_ENTITY_ID]);
 const DEV_PREVIEW_EVENT_IDS = new Set([DEV_ORIGIN_ALERT_ID, DEV_ORIGIN_EVENT_ID]);
 
 const ORIGIN_EVENT_SCENARIO_MAP: Record<string, (id: string) => GraphResponse> = {
-  'dev-event-1': () => scenarioComplexPreview(),
-  'dev-event-2': () => scenarioComplexPreview(),
+  'dev-event-1': () => scenarioHostRiskPreview(DEV_ORIGIN_ENTITY_ID, 'john.doe', 95.5),
+  'dev-event-2': () => scenarioHostRiskPreview(DEV_ORIGIN_ENTITY_ID, 'john.doe', 95.5),
 };
-
 const isDevGraphPreviewRequest = (req: GraphRequest): boolean => {
   const { entityIds, originEventIds } = req.query;
 
@@ -1498,13 +1720,47 @@ const isDevGraphPreviewRequest = (req: GraphRequest): boolean => {
 };
 
 /**
+ * True when this request should use a local mock instead of the live graph API.
+ * Design fixtures keep the hardcoded risk + 8-relationship narrative; all other
+ * entity IDs (doc generator / real store) use the real API when
+ * {@link MOCK_DESIGN_FIXTURES_ONLY} is on.
+ */
+const shouldUseMockGraph = (req: GraphRequest): boolean => {
+  if (!USE_MOCK_GRAPH_DATA) return false;
+  if (!MOCK_DESIGN_FIXTURES_ONLY) return true;
+
+  if (isDevGraphPreviewRequest(req)) return true;
+
+  const entityIds = req.query.entityIds;
+  if (entityIds?.length) {
+    const origin = entityIds.find((e) => e.isOrigin) ?? entityIds[0];
+    const id = origin.id;
+    const bare = id.replace(/^(user|host|service):/i, '');
+    return Boolean(ENTITY_SCENARIO_MAP[id] || ENTITY_SCENARIO_MAP[bare]);
+  }
+
+  const originEventIds = req.query.originEventIds;
+  if (originEventIds?.length) {
+    return Boolean(ORIGIN_EVENT_SCENARIO_MAP[originEventIds[0].id]);
+  }
+
+  return false;
+};
+
+/**
  * Returns a mock graph for the given entity/event IDs.
  * Tries the named map first, then falls back to a host-risk preview with a
  * varied origin score so badge colors (Critical → Unknown) are easy to review.
+ *
+ * Preview and expanded Entity Graph share this response — never return a denser
+ * graph for expand than the preview summarized for the same entity id.
  */
 const getMockGraphForRequest = (req: GraphRequest): GraphResponse => {
   if (isDevGraphPreviewRequest(req)) {
-    return ensureEntityRiskScores(scenarioComplexPreview());
+    // Dev page uses the same host-risk narrative as Entity Analytics seeds.
+    return ensureEntityRiskScores(
+      scenarioHostRiskPreview(DEV_ORIGIN_ENTITY_ID, 'john.doe', 95.5)
+    );
   }
 
   const entityIds = req.query.entityIds;
@@ -1512,11 +1768,15 @@ const getMockGraphForRequest = (req: GraphRequest): GraphResponse => {
 
   // Entity mode: use entity ID
   if (entityIds?.length) {
-    const id = entityIds[0].id;
-    if (ENTITY_SCENARIO_MAP[id]) {
-      return ensureEntityRiskScores(ENTITY_SCENARIO_MAP[id](id));
+    // Prefer the origin entity when GraphInvestigation appends expanded ids.
+    const origin = entityIds.find((e) => e.isOrigin) ?? entityIds[0];
+    const id = origin.id;
+    const bare = id.replace(/^(user|host|service):/i, '');
+    const scenario = ENTITY_SCENARIO_MAP[id] ?? ENTITY_SCENARIO_MAP[bare];
+    if (scenario) {
+      return ensureEntityRiskScores(scenario(id));
     }
-    // Default: colorful host-risk preview — origin band rotates by id hash
+    // Safety net — should not run when MOCK_DESIGN_FIXTURES_ONLY is on.
     const hash = hashString(id);
     const originRisk = MOCK_ORIGIN_RISK_BY_BAND[hash % MOCK_ORIGIN_RISK_BY_BAND.length];
     const label = id.split(':').pop() ?? id;
@@ -1534,9 +1794,7 @@ const getMockGraphForRequest = (req: GraphRequest): GraphResponse => {
   }
 
   return ensureEntityRiskScores(scenarioDense());
-};
-
-// =============================================================================
+};// =============================================================================
 // HOOK
 // =============================================================================
 
@@ -1548,6 +1806,19 @@ export interface UseFetchGraphDataParams {
    * The request object containing the query parameters for the graph data.
    */
   req: GraphRequest;
+  /**
+   * Flyout / Entity Store risk for the origin (`calculated_score_norm`).
+   * Patched onto the origin node so preview and expanded graph match the table.
+   * - `number` → set origin riskScore
+   * - `null` → clear origin risk (Unknown)
+   * - `undefined` → leave risk unchanged (still tags `isOrigin`)
+   */
+  originRiskScore?: number | null;
+  /**
+   * Display name of the investigation origin (host/user/service name).
+   * Used when entity Store id ≠ graph node id/label so origin actions stay disabled.
+   */
+  originEntityName?: string;
   /**
    * Optional configuration options for the query.
    */
@@ -1602,6 +1873,8 @@ export interface UseFetchGraphDataResult {
 
 export const useFetchGraphData = ({
   req,
+  originRiskScore,
+  originEntityName,
   options,
 }: UseFetchGraphDataParams): UseFetchGraphDataResult => {
   const queryClient = useQueryClient();
@@ -1610,23 +1883,36 @@ export const useFetchGraphData = ({
     services: { http },
   } = useKibana();
 
+  const useMock = shouldUseMockGraph(req);
+
   const QUERY_KEY = useMemo(
     () => ['useFetchGraphData', originEventIds, entityIds, start, end, esQuery, pinnedIds],
     [end, entityIds, esQuery, originEventIds, start, pinnedIds]
   );
 
-  // Each entity gets its own distinct graph based on its ID
+  // Design fixtures only — each mapped entity gets its mock scenario.
+  // Always patch origin risk so preview ≡ expanded ≡ flyout/table.
   const mockResult = useMemo(
     () => ({
       isLoading: false,
       isFetching: false,
       isError: false,
       error: null,
-      data: getMockGraphForRequest(req),
+      data: applyOriginRiskScoreToGraph(
+        getMockGraphForRequest(req),
+        req,
+        originRiskScore,
+        originEntityName
+      ),
       refresh: () => {},
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [JSON.stringify(req.query.entityIds), JSON.stringify(req.query.originEventIds)]
+    [
+      JSON.stringify(req.query.entityIds),
+      JSON.stringify(req.query.originEventIds),
+      originRiskScore,
+      originEntityName,
+    ]
   );
 
   const { isLoading, isError, data, isFetching, error } = useQuery<GraphResponse>(
@@ -1643,19 +1929,26 @@ export const useFetchGraphData = ({
       }
     },
     {
-      enabled: USE_MOCK_GRAPH_DATA ? false : options?.enabled ?? true,
+      enabled: useMock ? false : options?.enabled ?? true,
       refetchOnWindowFocus: options?.refetchOnWindowFocus ?? true,
       keepPreviousData: options?.keepPreviousData ?? false,
     }
   );
 
-  if (USE_MOCK_GRAPH_DATA) return mockResult;
+  const alignedLiveData = useMemo(
+    () =>
+      data ? applyOriginRiskScoreToGraph(data, req, originRiskScore, originEntityName) : data,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data, originRiskScore, originEntityName, JSON.stringify(req.query.entityIds)]
+  );
+
+  if (useMock) return mockResult;
 
   return {
     isLoading,
     isFetching,
     isError,
-    data,
+    data: alignedLiveData,
     error,
     refresh: () => {
       queryClient.invalidateQueries(QUERY_KEY);

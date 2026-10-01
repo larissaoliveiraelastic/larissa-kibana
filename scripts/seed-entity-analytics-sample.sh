@@ -4,6 +4,14 @@
 #
 # KEEP THESE EXAMPLES — they are the permanent local design fixtures for risk badge colors:
 #   Critical · High · Moderate · Low · Unknown
+# Graph mock (8 relationships → 3 subtype groups) is wired only for these IDs.
+#
+# Hybrid with doc generator:
+#   - This script only deletes/re-writes the named fixtures below — it does NOT wipe
+#     Identity/Host docs from the security document generator.
+#   - Run your doc generator for a fuller table; re-run this seed anytime so the
+#     Critical→Unknown ladder stays on top for design review.
+#   - Opening a fixture entity → mock graph. Opening a real/doc-gen entity → live API.
 #
 # Entities live in Elasticsearch — they are NOT in git. Re-run after every fresh
 # `yarn es snapshot` (or anytime the Entity risk levels donut shows all Unknown).
@@ -252,6 +260,138 @@ if errs[:3]:
 "
 rm -f "${BULK}"
 
+# ---------------------------------------------------------------------------
+# Enrich a slice of real/doc-generator hosts with the Critical→Unknown ladder
+# so the table/donut show risk badges beyond the named design fixtures.
+# Does NOT replace fixtures; only updates hosts that currently lack entity.risk.
+# Graph mock stays on fixtures only (MOCK_DESIGN_FIXTURES_ONLY).
+# ---------------------------------------------------------------------------
+echo "Enriching doc-generator hosts with risk ladder (Critical→Unknown)..."
+python3 - "$ES_URL" "$ES_USER" "$ES_PASS" "$ENTITY_INDEX" "$NOW" <<'PY'
+import json, sys, urllib.request, base64
+
+es_url, user, password, entity_index, now_s = sys.argv[1:6]
+auth = base64.b64encode(f"{user}:{password}".encode()).decode()
+
+def req(method, path, body=None):
+  data = None if body is None else json.dumps(body).encode()
+  r = urllib.request.Request(
+    f"{es_url}{path}",
+    data=data,
+    method=method,
+    headers={
+      "Authorization": f"Basic {auth}",
+      "Content-Type": "application/json",
+    },
+  )
+  with urllib.request.urlopen(r) as resp:
+    return json.load(resp)
+
+# Pick host entities that have no entity.risk score yet (real doc-gen rows).
+search = req("POST", f"/{entity_index}/_search", {
+  "size": 40,
+  "query": {
+    "bool": {
+      "filter": [
+        {"term": {"entity.EngineMetadata.Type": "host"}},
+        {"bool": {"must_not": [{"exists": {"field": "entity.risk.calculated_score_norm"}}]}},
+      ]
+    }
+  },
+  "_source": ["entity.id", "entity.name", "host.name"],
+})
+hits = search.get("hits", {}).get("hits", [])
+if not hits:
+  print("  (no unscored hosts found — skip enrich)")
+  sys.exit(0)
+
+# Spread across the ladder so Critical/High/Moderate are visible among real names.
+ladder = [
+  (98.5, "Critical"),
+  (92.0, "Critical"),
+  (88.0, "High"),
+  (80.0, "High"),
+  (72.0, "High"),
+  (65.0, "Moderate"),
+  (58.0, "Moderate"),
+  (48.0, "Moderate"),
+  (35.0, "Low"),
+  (28.0, "Low"),
+  (22.0, "Low"),
+  (15.0, "Unknown"),
+  (10.0, "Unknown"),
+]
+
+lines = []
+enriched = 0
+for i, hit in enumerate(hits[: len(ladder)]):
+  score, level = ladder[i]
+  src = hit.get("_source") or {}
+  entity = src.get("entity") or {}
+  eid = entity.get("id") or f"host:{entity.get('name')}"
+  name = entity.get("name") or (src.get("host") or {}).get("name")
+  if not name:
+    continue
+  risk_fields = {
+    "calculated_score": score,
+    "calculated_score_norm": score,
+    "calculated_level": level,
+  }
+  typed_risk = {
+    **risk_fields,
+    "id_field": "entity.id",
+    "id_value": eid,
+    "score_type": "base",
+  }
+  # Partial update — keep Identity/Host fields from doc generator.
+  lines.append(json.dumps({"update": {"_index": entity_index, "_id": hit["_id"]}}))
+  lines.append(json.dumps({
+    "doc": {
+      "entity": {"risk": risk_fields},
+      "host": {"risk": typed_risk},
+    }
+  }))
+  latest = {
+    "@timestamp": now_s,
+    "host": {
+      "name": name,
+      "risk": {
+        **typed_risk,
+        "category_1_score": score,
+        "category_1_count": max(1, int(score // 10)),
+        "notes": [],
+        "modifiers": [],
+        "inputs": [],
+      },
+    },
+  }
+  lines.append(json.dumps({"index": {"_index": "risk-score.risk-score-latest-default", "_id": eid}}))
+  lines.append(json.dumps(latest))
+  enriched += 1
+  print(f"  {level:10} {score:5}  {name}")
+
+if not lines:
+  print("  (nothing to enrich)")
+  sys.exit(0)
+
+bulk_body = ("\n".join(lines) + "\n").encode()
+r = urllib.request.Request(
+  f"{es_url}/_bulk?refresh=true",
+  data=bulk_body,
+  method="POST",
+  headers={
+    "Authorization": f"Basic {auth}",
+    "Content-Type": "application/x-ndjson",
+  },
+)
+with urllib.request.urlopen(r) as resp:
+  result = json.load(resp)
+errs = [i for i in result.get("items", []) if list(i.values())[0].get("error")]
+print(f"  enrich bulk errors: {len(errs)} / {len(result.get('items', []))} (enriched {enriched})")
+if errs[:2]:
+  print(json.dumps(errs[:2], indent=2))
+PY
+
 # Disable risk-engine reset-to-zero (maintainer + legacy). The experimental
 # `disable:enableRiskScoreResetToZero` flag is not enough — maintainer defaults
 # enableResetToZero to true and rewrites entity.risk → Unknown/0 within seconds.
@@ -282,6 +422,17 @@ curl -s -u kibana_system:changeme -X POST \
 echo ""
 echo "Entity store risk ladder:"
 ENTITY_LADDER_JSON="$(curl -s "${AUTH[@]}" "${ES_URL}/entities-latest-default/_search?size=20" -H 'Content-Type: application/json' -d '{
+  "query": {"terms": {"entity.name": [
+    "edge-sec-ubuntu-2004-obtc-estec-0",
+    "macbook-john-work",
+    "admin-pc",
+    "john-pc-home",
+    "low-risk-host",
+    "guest-unknown",
+    "john.doe",
+    "alice",
+    "auth-service"
+  ]}},
   "sort":[{"entity.risk.calculated_score_norm":"desc"}],
   "_source":["entity.name","entity.risk","host.risk","user.risk","service.risk"]
 }')"
@@ -332,8 +483,18 @@ print('VERIFY OK — Critical→Unknown fixtures present in entity store.')
 
 echo ""
 echo "Risk-score latest (flyout Lens / table source):"
-RISK_LATEST_JSON="$(curl -s "${AUTH[@]}" "${ES_URL}/risk-score.risk-score-latest-default/_search?size=20" -H 'Content-Type: application/json' -d '{
-  "query": {"match_all": {}},
+RISK_LATEST_JSON="$(curl -s "${AUTH[@]}" "${ES_URL}/risk-score.risk-score-latest-default/_search?size=30" -H 'Content-Type: application/json' -d '{
+  "query": {"ids": {"values": [
+    "host:9e4316b8589de4d3dd3cc8c4658f11dc",
+    "host:macbook-john-work",
+    "host:admin-pc",
+    "host:john-pc-home",
+    "host:low-risk-host",
+    "host:guest-unknown",
+    "user:john.doe",
+    "user:alice",
+    "service:auth-service"
+  ]}},
   "_source": ["host.name","host.risk","user.name","user.risk","service.name","service.risk"]
 }')"
 python3 -c "

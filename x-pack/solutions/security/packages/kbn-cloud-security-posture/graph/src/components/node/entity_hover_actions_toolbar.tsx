@@ -12,6 +12,7 @@ import { i18n } from '@kbn/i18n';
 import type { EntityActionItem } from '../types';
 import { ApplyFiltersPopover } from '../controls/apply_filters_popover';
 import { useGraphFiltersContext } from '../graph/graph_filters_context';
+import { GRAPH_ACTION_BUTTON_BORDER_RADIUS } from '../constants';
 import {
   GRAPH_ENTITY_HOVER_METADATA_FILTERS_ID,
   GRAPH_NODE_POPOVER_SHOW_ENTITY_DETAILS_ITEM_ID,
@@ -43,8 +44,8 @@ const hoverActionsOut = keyframes`
 `;
 
 const entityMetadataShortcutLabel = i18n.translate(
-  'securitySolutionPackages.csp.graph.entityHover.entityMetadata',
-  { defaultMessage: 'Entity metadata' }
+  'securitySolutionPackages.csp.graph.entityHover.singleNodeMetadata',
+  { defaultMessage: 'Single node metadata' }
 );
 
 interface EntityHoverActionsToolbarProps {
@@ -52,23 +53,34 @@ interface EntityHoverActionsToolbarProps {
   isExiting?: boolean;
   /** Keep entity hover chrome open while the metadata popover portal is active. */
   onMetadataPopoverOpenChange?: (isOpen: boolean) => void;
+  /**
+   * Entity-metadata (layers) shortcut — single entities only.
+   * Group cards never expose entity metadata.
+   */
+  showMetadataShortcut?: boolean;
 }
 
 /**
  * Figma Action Menu (node 14282:3835): icon row above the entity on hover.
  * Uses the same actions/toggles as the entity expand popover, plus a Display
- * (layers) shortcut that opens only the Entity Metadata filter section.
+ * (layers) shortcut that opens only the Entity Metadata filter section
+ * (single entities only).
  * @see https://www.figma.com/design/NKGsPiGKZ4rEwRVBnuctZ2/branch/1LKHFvfb4x85b5VjpLKYjN/-9.5--Graph-viz---Component-Library?node-id=14282-3835
  */
 export const EntityHoverActionsToolbar = memo<EntityHoverActionsToolbarProps>(
-  ({ getItems, isExiting = false, onMetadataPopoverOpenChange }) => {
+  ({
+    getItems,
+    isExiting = false,
+    onMetadataPopoverOpenChange,
+    showMetadataShortcut: showMetadataShortcutProp = true,
+  }) => {
     const { euiTheme } = useEuiTheme();
     // Bump after a toggle so Show/Hide labels refresh while the toolbar stays open.
     const [version, setVersion] = useState(0);
     const [isMetadataOpen, setIsMetadataOpen] = useState(false);
     const graphFilters = useGraphFiltersContext();
     const items = getItems();
-    const showMetadataShortcut = graphFilters != null;
+    const showMetadataShortcut = showMetadataShortcutProp && graphFilters != null;
 
     useEffect(() => {
       onMetadataPopoverOpenChange?.(isMetadataOpen);
@@ -90,12 +102,25 @@ export const EntityHoverActionsToolbar = memo<EntityHoverActionsToolbarProps>(
     }
 
     const iconButtonCss = css`
-      /* Keep glyph ink consistent; don't force SVG fill (breaks multi-path icons). */
+      /* Match Figma action hit targets (8px) — beat EUI emotion radius. */
+      border-radius: ${GRAPH_ACTION_BUTTON_BORDER_RADIUS}px !important;
       &,
+      &:hover,
+      &:focus,
+      &:focus-visible,
+      &:active,
       &:disabled,
       &[disabled] {
-        color: ${euiTheme.colors.textParagraph} !important;
-        opacity: 1;
+        border-radius: ${GRAPH_ACTION_BUTTON_BORDER_RADIUS}px !important;
+      }
+      /* Keep glyph ink consistent; don't force SVG fill (breaks multi-path icons). */
+      color: ${euiTheme.colors.textParagraph} !important;
+      &:disabled,
+      &[disabled] {
+        /* Origin / unavailable actions — muted disabled look, label unchanged. */
+        color: ${euiTheme.colors.textDisabled} !important;
+        opacity: 0.45;
+        cursor: not-allowed;
       }
       .euiIcon,
       .euiIcon svg {
@@ -115,7 +140,11 @@ export const EntityHoverActionsToolbar = memo<EntityHoverActionsToolbarProps>(
       entityDetailsIndex >= 0 ? items.slice(entityDetailsIndex) : [];
 
     const renderActionItem = (item: EntityActionItem) => (
-      <EuiToolTip key={item.testSubject} content={item.label} position="top">
+      <EuiToolTip
+        key={item.testSubject}
+        content={item.disabled && item.toolTipText ? item.toolTipText : item.label}
+        position="top"
+      >
         <EuiButtonIcon
           iconType={item.iconType}
           iconSize="m"
@@ -127,7 +156,9 @@ export const EntityHoverActionsToolbar = memo<EntityHoverActionsToolbarProps>(
           size="s"
           disabled={item.disabled}
           css={iconButtonCss}
+          style={{ borderRadius: GRAPH_ACTION_BUTTON_BORDER_RADIUS }}
           onClick={() => {
+            if (item.disabled) return;
             item.onClick();
             setVersion((current) => current + 1);
           }}
@@ -155,6 +186,7 @@ export const EntityHoverActionsToolbar = memo<EntityHoverActionsToolbarProps>(
               display="empty"
               size="s"
               css={iconButtonCss}
+              style={{ borderRadius: GRAPH_ACTION_BUTTON_BORDER_RADIUS }}
               onClick={() => setIsMetadataOpen((open) => !open)}
             />
           </EuiToolTip>

@@ -17,6 +17,7 @@ import {
 } from '../../common/lib/telemetry';
 import {
   defaultToolsFlyoutProperties,
+  entityGraphToolsFlyoutProperties,
   useDefaultDocumentFlyoutProperties,
 } from '../shared/hooks/use_default_flyout_properties';
 import { useOpenFlyout } from '../shared/hooks/use_open_flyout';
@@ -816,7 +817,10 @@ export const useEntityFlyoutApi = (): EntityFlyoutApi => {
       open(
         <GraphView {...props} />,
         {
-          ...toolProperties(title ?? formatFlyoutTitle(ENTITY_GRAPH_VIEW_TITLE, entityName)),
+          ...entityGraphToolsFlyoutProperties,
+          historyKey,
+          session: FLYOUT_SESSION_KIND.START,
+          title: title ?? formatFlyoutTitle(ENTITY_GRAPH_VIEW_TITLE, entityName),
           onClose,
         },
         {
@@ -829,7 +833,7 @@ export const useEntityFlyoutApi = (): EntityFlyoutApi => {
         FLYOUT_SESSION_KIND.INHERIT
       );
     },
-    [open, toolProperties, writeOnOpen, buildOnClose]
+    [open, historyKey, writeOnOpen, buildOnClose]
   );
   const openEntityResolution = useCallback(
     ({ title, origin, ...props }: OpenEntityResolutionParams) => {

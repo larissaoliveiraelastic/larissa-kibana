@@ -25,6 +25,10 @@ export const sanitizeEntityRecordForUpsert = (record: Entity): Entity =>
 /**
  * Risk fields for entity list / table cells. Entity Store v2 stores scores on
  * `entity.risk.*`; older documents may only have `host.risk.*`, `user.risk.*`, or `service.risk.*`.
+ *
+ * Prefer `entity.risk` when it has a real score. Reset-to-zero often rewrites
+ * `entity.risk` → Unknown/0 while typed risk still holds Critical→Low — fall
+ * back to host|user|service.risk in that case (same as the flyout).
  */
 export const getEntityRecordRiskForListDisplay = (
   record: Entity
@@ -33,44 +37,36 @@ export const getEntityRecordRiskForListDisplay = (
   calculated_score_norm?: number;
 } | null => {
   const entityRisk = record.entity?.risk;
-  if (entityRisk) {
-    return {
-      calculated_level: entityRisk.calculated_level,
-      calculated_score_norm: entityRisk.calculated_score_norm,
-    };
-  }
+  const typedRisk =
+    ('host' in record && record.host?.risk) ||
+    ('user' in record && record.user?.risk) ||
+    ('service' in record && record.service?.risk) ||
+    undefined;
 
-  if ('host' in record && record.host) {
-    const hostRisk = record.host.risk;
-    if (hostRisk) {
-      return {
-        calculated_level: hostRisk.calculated_level,
-        calculated_score_norm: hostRisk.calculated_score_norm,
-      };
-    }
-  }
+  const toFields = (
+    risk:
+      | {
+          calculated_level?: string;
+          calculated_score_norm?: number;
+        }
+      | undefined
+      | null
+  ) =>
+    risk
+      ? {
+          calculated_level: risk.calculated_level,
+          calculated_score_norm: risk.calculated_score_norm,
+        }
+      : null;
 
-  if ('user' in record && record.user) {
-    const userRisk = record.user.risk;
-    if (userRisk) {
-      return {
-        calculated_level: userRisk.calculated_level,
-        calculated_score_norm: userRisk.calculated_score_norm,
-      };
-    }
+  const entityScore = entityRisk?.calculated_score_norm;
+  if (entityRisk != null && entityScore != null && entityScore > 0) {
+    return toFields(entityRisk);
   }
-
-  if ('service' in record && record.service) {
-    const serviceRisk = record.service.risk;
-    if (serviceRisk) {
-      return {
-        calculated_level: serviceRisk.calculated_level,
-        calculated_score_norm: serviceRisk.calculated_score_norm,
-      };
-    }
+  if (typedRisk != null && (typedRisk.calculated_score_norm ?? 0) > 0) {
+    return toFields(typedRisk);
   }
-
-  return null;
+  return toFields(entityRisk) ?? toFields(typedRisk);
 };
 
 // Back-compat re-export for existing `./helpers` importers. New code should import

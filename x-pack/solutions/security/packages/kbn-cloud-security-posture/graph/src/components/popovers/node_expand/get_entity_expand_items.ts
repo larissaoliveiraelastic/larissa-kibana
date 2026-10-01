@@ -166,27 +166,27 @@ export const getEntityExpandItems = (
           ),
       disabled: showEntityRelationshipsDisabled,
       onClick: () => {
+        if (showEntityRelationshipsDisabled) return;
         toggleEntityRelationships?.(isEntityRelationshipsExpanded ? 'hide' : 'show');
         onClose?.();
       },
-      showToolTip: showEntityRelationshipsDisabled,
-      toolTipText: showEntityRelationshipsDisabled
-        ? isInitialEntity
+      // Origin / investigation entity: disabled only — keep the toggled label
+      // ("Hide entity relationships"); do not replace with a "Cannot hide…" tooltip.
+      showToolTip: showEntityRelationshipsDisabled && !isInitialEntity,
+      toolTipText:
+        showEntityRelationshipsDisabled && !isInitialEntity
           ? i18n.translate(
-              'securitySolutionPackages.csp.graph.graphNodeExpandPopover.initialEntityRelationshipsNotAvailable',
-              { defaultMessage: 'Cannot hide entity relationships of investigation entity' }
-            )
-          : i18n.translate(
               'securitySolutionPackages.csp.graph.graphNodeExpandPopover.entityRelationshipsNotAvailable',
               { defaultMessage: 'Entity relationships not available' }
             )
-        : undefined,
-      toolTipProps: showEntityRelationshipsDisabled
-        ? {
-            position: 'bottom',
-            'data-test-subj': GRAPH_NODE_POPOVER_SHOW_ENTITY_RELATIONSHIPS_TOOLTIP_ID,
-          }
-        : undefined,
+          : undefined,
+      toolTipProps:
+        showEntityRelationshipsDisabled && !isInitialEntity
+          ? {
+              position: 'bottom',
+              'data-test-subj': GRAPH_NODE_POPOVER_SHOW_ENTITY_RELATIONSHIPS_TOOLTIP_ID,
+            }
+          : undefined,
     });
   }
 

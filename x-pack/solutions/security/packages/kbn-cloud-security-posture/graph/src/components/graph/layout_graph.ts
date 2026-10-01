@@ -60,13 +60,14 @@ const CARD_LAYOUT_GROUP_STACK = 22;
  */
 const estimateEntityCardLayoutHeight = (data: EntityNodeViewModel): number => {
   const isGroup = showStackedShape(data.count);
-  const showIp = Boolean(data.ips && data.ips.length > 0);
-  const showGeo = Boolean(data.countryCodes && data.countryCodes.length > 0);
-  const showCriticality = Boolean(data.assetCriticality || data.assetCriticalityCounts);
-  const showSource = Boolean(data.sources && data.sources.length > 0);
+  // Entity metadata body is reserved for single entities only.
+  const showIp = !isGroup && Boolean(data.ips && data.ips.length > 0);
+  const showGeo = !isGroup && Boolean(data.countryCodes && data.countryCodes.length > 0);
+  const showCriticality =
+    !isGroup && Boolean(data.assetCriticality || data.assetCriticalityCounts);
+  const showSource = !isGroup && Boolean(data.sources && data.sources.length > 0);
   const showEntityId = !isGroup && Boolean(data.showEntityId);
-  // Groups always expose a subtype row when metadata is on (derived from label).
-  const showSubType = isGroup && Boolean(data.label);
+  const showSubType = !isGroup && Boolean(data.subType);
   // Risk score lives in the card header badge — it does not add body height.
   const hasBody =
     showIp || showGeo || showEntityId || showCriticality || showSource || showSubType;
@@ -76,28 +77,21 @@ const estimateEntityCardLayoutHeight = (data: EntityNodeViewModel): number => {
   if (hasBody) {
     height += CARD_LAYOUT_BODY_PADDING;
 
-    if (isGroup) {
-      if (showSubType || showSource) {
-        height += CARD_LAYOUT_METADATA_BLOCK;
-      }
-      if (showIp || showGeo) {
-        height += CARD_LAYOUT_SECTION_GAP + CARD_LAYOUT_METADATA_BLOCK;
-      }
-      if (showCriticality) {
-        height += CARD_LAYOUT_SECTION_GAP + CARD_LAYOUT_METADATA_BLOCK;
-      }
-    } else {
-      if (showIp || showGeo) {
-        height += CARD_LAYOUT_METADATA_BLOCK;
-      }
+    if (showSubType || showSource) {
+      height += CARD_LAYOUT_METADATA_BLOCK;
+    }
 
-      if (showEntityId) {
-        height += CARD_LAYOUT_SECTION_GAP + CARD_LAYOUT_METADATA_BLOCK;
-      }
+    if (showIp || showGeo) {
+      height +=
+        (showSubType || showSource ? CARD_LAYOUT_SECTION_GAP : 0) + CARD_LAYOUT_METADATA_BLOCK;
+    }
 
-      if (showCriticality || showSource) {
-        height += CARD_LAYOUT_SECTION_GAP + CARD_LAYOUT_METADATA_BLOCK;
-      }
+    if (showEntityId) {
+      height += CARD_LAYOUT_SECTION_GAP + CARD_LAYOUT_METADATA_BLOCK;
+    }
+
+    if (showCriticality) {
+      height += CARD_LAYOUT_SECTION_GAP + CARD_LAYOUT_METADATA_BLOCK;
     }
   }
 

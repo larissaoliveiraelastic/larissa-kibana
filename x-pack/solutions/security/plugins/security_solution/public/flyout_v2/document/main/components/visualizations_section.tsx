@@ -26,7 +26,10 @@ import { AnalyzerGraph } from '../../tools/analyzer';
 import { useSessionViewConfig } from '../../tools/session_view/hooks/use_session_view_config';
 import { SessionView } from '../../tools/session_view';
 import { GraphView } from '../../tools/graph';
-import { defaultToolsFlyoutProperties } from '../../../shared/hooks/use_default_flyout_properties';
+import {
+  defaultToolsFlyoutProperties,
+  entityGraphToolsFlyoutProperties,
+} from '../../../shared/hooks/use_default_flyout_properties';
 import { useIsInSecurityApp } from '../../../../common/hooks/is_in_security_app';
 
 export const VISUALIZATION_SECTION_TEST_ID = `${PREFIX}Visualizations` as const;
@@ -152,7 +155,7 @@ export const VisualizationsSection = memo(
             ),
           }),
           {
-            ...defaultToolsFlyoutProperties,
+            ...entityGraphToolsFlyoutProperties,
             historyKey,
             session: 'start',
           }

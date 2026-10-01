@@ -6,20 +6,17 @@
  */
 
 import React from 'react';
-import { css, type Interpolation, type Theme } from '@emotion/react';
+import type { Interpolation, Theme } from '@emotion/react';
 import { EuiNotificationBadge, type EuiNotificationBadgeProps } from '@elastic/eui';
 
-/** Pill-shaped notification badges per current EUI badge standards. */
-export const graphNotificationBadgeCss = css`
-  border-radius: 999px;
-`;
-
+/**
+ * Thin wrapper around {@link EuiNotificationBadge} so graph chrome shares one
+ * import. Keeps EUI defaults (accent fill, `border.radius.small / 2`) — do not
+ * force pill (`999px`) radius or hollow/outline colors.
+ */
 export const GraphNotificationBadge = ({
   css: customCss,
   ...props
 }: EuiNotificationBadgeProps) => (
-  <EuiNotificationBadge
-    css={[graphNotificationBadgeCss, customCss as Interpolation<Theme>]}
-    {...props}
-  />
+  <EuiNotificationBadge css={customCss as Interpolation<Theme>} {...props} />
 );

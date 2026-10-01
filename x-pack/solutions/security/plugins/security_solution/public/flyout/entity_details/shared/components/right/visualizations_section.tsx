@@ -113,12 +113,12 @@ export const VisualizationsSection = memo(
             <EntityGraphFlyoutContent
               entityId={entityId}
               scopeId={scopeId}
+              originRiskScore={originRiskScore}
               onBack={() => {
                 flyoutRef.close();
                 graphFlyoutRef.current = null;
               }}
-            />
-          ),
+            />          ),
         }),
         {
           ...getEntityGraphFlyoutOptions(),
@@ -136,6 +136,7 @@ export const VisualizationsSection = memo(
       entityId,
       history,
       openDetailsPanel,
+      originRiskScore,
       overlays,
       scopeId,
       services,

@@ -51,7 +51,11 @@ export const useEntityNodeExpandPopover = (
       const isSingleEntity = docMode === 'single-entity';
       const isGroupedEntities = docMode === 'grouped-entities';
       const isEnriched = isEntityNodeEnriched(node.data);
-      const isInitialEntity = isInitialEntityForScope(scopeId, node.id);
+      // Origin / first entity of the graph — relationships cannot be hidden (base of the view).
+      const isOriginNode = Boolean(
+        'isOrigin' in node.data && (node.data as { isOrigin?: boolean }).isOrigin
+      );
+      const isInitialEntity = isInitialEntityForScope(scopeId, node.id) || isOriginNode;
 
       const sourceFields = getSourceFieldsFromNode(node.data);
 

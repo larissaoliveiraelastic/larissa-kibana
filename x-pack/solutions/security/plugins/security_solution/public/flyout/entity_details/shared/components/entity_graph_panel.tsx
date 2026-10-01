@@ -24,10 +24,10 @@ import { GraphVisualization } from '../../../shared/components/graph_visualizati
 
 export const EntityGraphPanelKey = 'entity_graph' as const;
 
-/** Default width: a bit larger than the entity flyout (~500px), still resizable. */
-export const ENTITY_GRAPH_FLYOUT_DEFAULT_WIDTH = 720;
-export const ENTITY_GRAPH_FLYOUT_MIN_WIDTH = 480;
-export const ENTITY_GRAPH_FLYOUT_MAX_WIDTH = 1200;
+/** Wide enough for the full Entity Graph (origin + relationships + group cards). */
+export const ENTITY_GRAPH_FLYOUT_DEFAULT_WIDTH = 1040;
+export const ENTITY_GRAPH_FLYOUT_MIN_WIDTH = 720;
+export const ENTITY_GRAPH_FLYOUT_MAX_WIDTH = 1400;
 
 export const getEntityGraphFlyoutOptions = (): OverlaySystemFlyoutOpenOptions => ({
   ownFocus: false,
@@ -64,12 +64,16 @@ const BACK_LABEL = i18n.translate('xpack.securitySolution.flyout.entityGraph.bac
 });
 
 const TITLE = i18n.translate('xpack.securitySolution.flyout.entityGraph.title', {
-  defaultMessage: 'Graph',
+  defaultMessage: 'Entity graph',
 });
 
 export interface EntityGraphFlyoutContentProps {
   entityId: string;
   scopeId: string;
+  /**
+   * Flyout Entity risk (`calculated_score_norm`) — must match table + preview.
+   */
+  originRiskScore?: number | null;
   /** Closes the graph flyout and returns to the entity flyout underneath. */
   onBack: () => void;
 }
@@ -79,7 +83,7 @@ export interface EntityGraphFlyoutContentProps {
  * Rendered inside a resizable system flyout (Back closes it → entity flyout).
  */
 export const EntityGraphFlyoutContent: FC<EntityGraphFlyoutContentProps> = memo(
-  ({ entityId, scopeId, onBack }) => {
+  ({ entityId, scopeId, originRiskScore, onBack }) => {
     const { euiTheme } = useEuiTheme();
 
     return (
@@ -136,7 +140,12 @@ export const EntityGraphFlyoutContent: FC<EntityGraphFlyoutContentProps> = memo(
               height: 100%;
             `}
           >
-            <GraphVisualization mode="entity" entityId={entityId} scopeId={scopeId} />
+            <GraphVisualization
+              mode="entity"
+              entityId={entityId}
+              scopeId={scopeId}
+              originRiskScore={originRiskScore}
+            />
           </div>
         </EuiFlyoutBody>
       </>

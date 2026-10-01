@@ -70,6 +70,11 @@ interface EntityGraphVisualizationProps {
   scopeId: string;
   /** Entity Store v2 entity ID (`entity.id`) to center the graph on */
   entityId: string;
+  /**
+   * Flyout Entity risk (`calculated_score_norm`) for the origin node.
+   * Keeps expanded graph aligned with table + preview.
+   */
+  originRiskScore?: number | null;
 }
 
 export type GraphVisualizationProps = EventGraphVisualizationProps | EntityGraphVisualizationProps;
@@ -299,6 +304,7 @@ export const GraphVisualization: React.FC<GraphVisualizationProps> = memo((props
         <React.Suspense fallback={<EuiLoadingSpinner />}>
           <GraphInvestigationLazy
             scopeId={scopeId}
+            originRiskScore={props.mode === 'entity' ? props.originRiskScore : undefined}
             initialState={
               props.mode === 'event'
                 ? {

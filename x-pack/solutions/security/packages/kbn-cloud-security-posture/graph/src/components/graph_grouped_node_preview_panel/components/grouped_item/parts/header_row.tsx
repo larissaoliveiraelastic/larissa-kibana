@@ -7,6 +7,7 @@
 
 import React, { useCallback, useMemo } from 'react';
 import {
+  EuiBadge,
   EuiFlexGroup,
   EuiFlexItem,
   EuiIcon,
@@ -33,6 +34,7 @@ import { displayEntityName, displayEventName } from '../utils';
 import { EntityActionsButton } from './entity_actions_button';
 import { EventActionsButton } from './event_actions_button';
 import { isInitialEntityForScope } from '../../../../filters/filter_store';
+import { getSpanIcon } from '../../../../node/get_span_icon';
 
 const entityUnavailableTooltip = i18n.translate(
   'securitySolutionPackages.csp.graph.groupedItem.entityUnavailable.tooltip',
@@ -41,15 +43,52 @@ const entityUnavailableTooltip = i18n.translate(
   }
 );
 
+const openEntityDetailsLabel = i18n.translate(
+  'securitySolutionPackages.csp.graph.groupedItem.openEntityDetails.ariaLabel',
+  {
+    defaultMessage: 'Open entity details',
+  }
+);
+
+const getRiskBadgeColors = (
+  score: number,
+  colors: {
+    backgroundLightDanger: string;
+    backgroundLightRisk: string;
+    backgroundLightWarning: string;
+    backgroundLightNeutral: string;
+    backgroundLightPrimary: string;
+    textDanger: string;
+    textRisk: string;
+    textWarning: string;
+    textNeutral: string;
+    textParagraph: string;
+  }
+) => {
+  if (score >= 90) {
+    return { background: colors.backgroundLightDanger, color: colors.textDanger };
+  }
+  if (score >= 70) {
+    return { background: colors.backgroundLightRisk, color: colors.textRisk };
+  }
+  if (score >= 40) {
+    return { background: colors.backgroundLightWarning, color: colors.textWarning };
+  }
+  if (score >= 20) {
+    return { background: colors.backgroundLightNeutral, color: colors.textNeutral };
+  }
+  return { background: colors.backgroundLightPrimary, color: colors.textParagraph };
+};
+
 export interface HeaderRowProps {
   item: EntityOrEventItem;
   /**
    * Unique identifier for the graph instance, used to scope filter state.
    */
   scopeId: string;
-  /** Invoked to open the event/alert details preview for the clicked item. */
+  /** Invoked to open the event/alert details preview for a clicked item. */
   onShowDocument: (docId: string, indexName?: string, isEvent?: boolean) => void;
-  /** Invoked to open the entity details preview for the clicked item. */
+  /** Invoked to open the entity details preview for a clicked item. */
   onShowEntity: (params: {
     engineType: string | undefined;
     entityId: string;
@@ -73,15 +112,16 @@ export const HeaderRow = ({ item, scopeId, onShowDocument, onShowEntity }: Heade
   }, [item]);
 
   const handlePreviewClick = useCallback(
-    (e: React.MouseEvent<HTMLAnchorElement>) => {
+    (e: React.MouseEvent) => {
       e.preventDefault();
+      e.stopPropagation();
 
       if (item.itemType === DOCUMENT_TYPE_ENTITY) {
         const entityItem = item as EntityItem;
         onShowEntity({
           engineType: entityItem.entity.engine_type,
           entityId: entityItem.id,
-          entityName: entityItem.entity.name,
+          entityName: entityItem.entity.name ?? entityItem.label,
         });
       } else {
         // event or alert
@@ -98,31 +138,48 @@ export const HeaderRow = ({ item, scopeId, onShowDocument, onShowEntity }: Heade
     [item, onShowDocument, onShowEntity]
   );
 
+  const isEntity = item.itemType === DOCUMENT_TYPE_ENTITY;
+  const entityItem = isEntity ? (item as EntityItem) : undefined;
   const isClickable =
     item.itemType === DOCUMENT_TYPE_EVENT ||
     item.itemType === DOCUMENT_TYPE_ALERT ||
-    (item.itemType === DOCUMENT_TYPE_ENTITY && (item as EntityItem).entity?.availableInEntityStore);
+    (isEntity && !!entityItem?.entity?.availableInEntityStore);
+
+  const entityTypeLabel = entityItem?.entity?.type;
+  const riskScore = entityItem?.risk;
+  const riskColors =
+    riskScore !== undefined
+      ? getRiskBadgeColors(riskScore, euiTheme.colors)
+      : undefined;
 
   return (
     <EuiFlexGroup gutterSize="s" alignItems="center" responsive={false}>
+      {isEntity && entityItem && (
+        <EuiFlexItem grow={false}>
+          <div
+            css={css`
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              width: ${euiTheme.size.xl};
+              height: ${euiTheme.size.xl};
+              border-radius: ${euiTheme.border.radius.medium};
+              background-color: ${euiTheme.colors.backgroundBaseSubdued};
+              flex-shrink: 0;
+            `}
+          >
+            <EuiIcon
+              type={getSpanIcon(entityItem.icon) ?? entityItem.icon ?? 'storage'}
+              size="m"
+              color="text"
+              aria-hidden={true}
+            />
+          </div>
+        </EuiFlexItem>
+      )}
       {item.itemType === DOCUMENT_TYPE_ALERT && (
         <EuiFlexItem grow={false}>
           <EuiIcon type="warningFill" size="m" color="danger" aria-hidden={true} />
-        </EuiFlexItem>
-      )}
-      {item.itemType === DOCUMENT_TYPE_ENTITY && (item as EntityItem).icon && (
-        <EuiFlexItem grow={false}>
-          <EuiIcon
-            type={(item as EntityItem).icon as string}
-            size="m"
-            color="primary"
-            css={css`
-              /* Icon is 1px mis-aligned vs link (entity name) */
-              position: relative;
-              top: 1px;
-            `}
-            aria-hidden={true}
-          />
         </EuiFlexItem>
       )}
       <EuiFlexItem
@@ -134,13 +191,19 @@ export const HeaderRow = ({ item, scopeId, onShowDocument, onShowEntity }: Heade
         {isClickable ? (
           <EuiLink
             onClick={handlePreviewClick}
-            color="primary"
+            color="text"
             css={css`
               font-weight: ${euiTheme.font.weight.semiBold};
+              display: block;
             `}
             data-test-subj={GROUPED_ITEM_TITLE_TEST_ID_LINK}
           >
             <EuiTextTruncate text={title} truncation="middle" />
+            {entityTypeLabel && (
+              <EuiText size="xs" color="subdued">
+                {entityTypeLabel}
+              </EuiText>
+            )}
           </EuiLink>
         ) : (
           <EuiToolTip
@@ -158,18 +221,49 @@ export const HeaderRow = ({ item, scopeId, onShowDocument, onShowEntity }: Heade
               `}
             >
               <EuiTextTruncate text={title} truncation="middle" />
+              {entityTypeLabel && (
+                <EuiText size="xs" color="subdued">
+                  {entityTypeLabel}
+                </EuiText>
+              )}
             </EuiText>
           </EuiToolTip>
         )}
       </EuiFlexItem>
+      {riskScore !== undefined && riskColors && (
+        <EuiFlexItem grow={false}>
+          <EuiBadge
+            color="hollow"
+            css={css`
+              background-color: ${riskColors.background};
+              color: ${riskColors.color};
+              border: none;
+              font-weight: ${euiTheme.font.weight.medium};
+            `}
+          >
+            {riskScore.toFixed(2)}
+          </EuiBadge>
+        </EuiFlexItem>
+      )}
       <EuiFlexItem grow={false}>
-        {item.itemType === DOCUMENT_TYPE_ENTITY ? (
-          <EntityActionsButton
-            item={item as EntityItem}
-            scopeId={scopeId}
-            isInitialEntity={isInitialEntityForScope(scopeId, (item as EntityItem).id)}
-            onShowEntity={onShowEntity}
-          />
+        {isEntity && entityItem ? (
+          isClickable ? (
+            <EuiLink
+              onClick={handlePreviewClick}
+              aria-label={openEntityDetailsLabel}
+              color="text"
+              data-test-subj="grouped-item-open-entity-chevron"
+            >
+              <EuiIcon type="arrowRight" />
+            </EuiLink>
+          ) : (
+            <EntityActionsButton
+              item={entityItem}
+              scopeId={scopeId}
+              isInitialEntity={isInitialEntityForScope(scopeId, entityItem.id)}
+              onShowEntity={onShowEntity}
+            />
+          )
         ) : (
           <EventActionsButton
             item={item as EventItem | AlertItem}

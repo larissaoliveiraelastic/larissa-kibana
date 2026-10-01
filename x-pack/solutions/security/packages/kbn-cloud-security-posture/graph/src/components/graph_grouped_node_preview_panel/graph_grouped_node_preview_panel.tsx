@@ -35,8 +35,7 @@ const events = i18n.translate(`${i18nNamespaceKey}.types.events`, {
 const translateEntityType = (type?: string): string => {
   if (!type) return entities;
 
-  // TODO Add more case branches for all possible types
-  switch (type) {
+  switch (type.toLowerCase()) {
     case 'host':
       return hosts;
     case 'user':
@@ -73,6 +72,11 @@ export interface GraphGroupedNodePreviewPanelProps {
     entityId: string;
     entityName: string | undefined;
   }) => void;
+  /**
+   * When true, omit the built-in count title (e.g. side panel already shows
+   * "3 GCP Compute Instances" in its chrome).
+   */
+  hidePanelTitle?: boolean;
 }
 
 interface PaginatedData {
@@ -142,7 +146,16 @@ const useContentMetadata = (
  * Panel to be displayed in the document details expandable flyout on top of right section
  */
 export const GraphGroupedNodePreviewPanel: FC<GraphGroupedNodePreviewPanelProps> = memo(
-  ({ docMode, scopeId, dataViewId, documentIds, entityItems, onShowDocument, onShowEntity }) => {
+  ({
+    docMode,
+    scopeId,
+    dataViewId,
+    documentIds,
+    entityItems,
+    onShowDocument,
+    onShowEntity,
+    hidePanelTitle = false,
+  }) => {
     // Initialize pagination state with localStorage persistence
     // - For 'grouped-entities': Pass entityItems.length to enable client-side pagination validation
     // - For 'grouped-events': Pass 0 since events use server-side pagination (handled by useFetchDocumentDetails)
@@ -177,6 +190,7 @@ export const GraphGroupedNodePreviewPanel: FC<GraphGroupedNodePreviewPanelProps>
         groupedItemsType={groupedItemsType}
         pagination={pagination}
         scopeId={scopeId}
+        hidePanelTitle={hidePanelTitle}
         onShowDocument={onShowDocument}
         onShowEntity={onShowEntity}
       />

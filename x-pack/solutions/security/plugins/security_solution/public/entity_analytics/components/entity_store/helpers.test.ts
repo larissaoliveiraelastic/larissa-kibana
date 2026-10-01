@@ -318,6 +318,32 @@ describe('helpers', () => {
         calculated_score_norm: 12,
       });
     });
+
+    it('falls back to host.risk when entity.risk was reset to Unknown/0', () => {
+      const hostEntity = {
+        '@timestamp': '2021-08-02T14:00:00.000Z',
+        host: {
+          name: 'my-host',
+          risk: {
+            calculated_level: 'Critical',
+            calculated_score_norm: 98.72,
+          },
+        },
+        entity: {
+          id: 'host:1',
+          name: 'my-host',
+          risk: {
+            calculated_level: 'Unknown',
+            calculated_score_norm: 0,
+          },
+        },
+      } as unknown as HostEntity;
+
+      expect(getEntityRecordRiskForListDisplay(hostEntity)).toEqual({
+        calculated_level: 'Critical',
+        calculated_score_norm: 98.72,
+      });
+    });
   });
 
   describe('sourceFieldToText', () => {

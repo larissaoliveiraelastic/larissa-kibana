@@ -9,9 +9,12 @@ import React, { memo, useMemo } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { css } from '@emotion/react';
 import styled from '@emotion/styled';
-import { EuiTextTruncate, EuiToolTip, useEuiTheme } from '@elastic/eui';
+import { useEuiTheme } from '@elastic/eui';
 import { NodeButton, NODE_LABEL_WIDTH } from '../styles';
-import { PillExpandButton, TEST_SUBJ_PILL_EXPAND_BTN } from '../pill_expand_button';
+import {
+  EventHoverActionsToolbar,
+  TEST_SUBJ_PILL_EXPAND_BTN,
+} from '../event_hover_actions_toolbar';
 import { useMultipleNodesSelected } from '../../../hooks/use_multiple_nodes_selected';
 import type { LabelNodeViewModel, NodeProps } from '../../types';
 import { GRAPH_LABEL_NODE_ID } from '../../test_ids';
@@ -21,10 +24,16 @@ import { analyzeDocuments } from './analyze_documents';
 import { LabelNodeBadges } from './label_node_badges';
 import { LabelNodeDetails } from './label_node_details';
 import {
+  EVENT_GROUP_STACK_HEIGHT,
   EVENT_PILL_HEIGHT,
+  EVENT_PILL_LABEL_FONT_SIZE,
+  EVENT_PILL_LABEL_LINE_HEIGHT,
+  EVENT_PILL_PADDING_LEFT,
+  EVENT_PILL_PADDING_X,
+  EVENT_PILL_PADDING_Y,
+  getEventPillBoxShadow,
   getEventPillColors,
   getEventPillTone,
-  LABEL_PILL_TEXT_MAX_WIDTH,
   pillHandleStyle,
 } from './event_pill_styles';
 import { OriginNodeOutline } from '../origin_node_outline';
@@ -34,12 +43,13 @@ export const TEST_SUBJ_EXPAND_BTN = TEST_SUBJ_PILL_EXPAND_BTN;
 export const TEST_SUBJ_TOOLTIP = 'label-node-tooltip';
 export const TEST_SUBJ_LABEL_TEXT = 'label-node-text';
 export const TEST_SUBJ_HANDLE = 'label-node-handle';
-
-const MAX_LABEL_LENGTH = 27;
+export const TEST_SUBJ_GROUP_STACK = 'label-node-group-stack';
 
 /**
  * Fixed layout width matches Dagre/`NODE_LABEL_WIDTH` so event/alert pills
  * center on the edge corridor. Through-line keeps the edge continuous under the pill.
+ *
+ * Figma Event (14980:17219): Single | Group × Alert | Event × Default | Hover | Active | Active hover
  */
 const LabelNodeContainer = styled.div`
   position: relative;
@@ -47,17 +57,17 @@ const LabelNodeContainer = styled.div`
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  gap: 6px;
+  gap: 4px;
   box-sizing: border-box;
+  /* Layout corridor stays NODE_LABEL_WIDTH; pill may hug wider than the corridor. */
   width: ${NODE_LABEL_WIDTH}px;
-  max-width: ${NODE_LABEL_WIDTH}px;
+  min-width: ${NODE_LABEL_WIDTH}px;
 `;
 
 const EdgeThroughLine = styled.div<{ $color: string }>`
   position: absolute;
   left: 0;
   right: 0;
-  /* Center on the handle Y (pill mid) — not the top of a 1px box at mid. */
   top: ${EVENT_PILL_HEIGHT / 2}px;
   height: 1px;
   transform: translateY(-50%);
@@ -70,9 +80,21 @@ const PillShell = styled.div`
   position: relative;
   z-index: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 100%;
+  width: max-content;
+  max-width: none;
+`;
+
+/** Hug the pill width so the group stack matches the capsule, not the full corridor. */
+const PillColumn = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: max-content;
+  max-width: none;
+  margin: 0 auto;
 `;
 
 const pillHitTargetCss = css`
@@ -90,33 +112,47 @@ const pillHitTargetCss = css`
 
 const EventPill = styled.div<{
   backgroundColor: string;
-  borderColor: string;
-  defaultShadow?: string;
-  hoverShadow?: string;
+  boxShadowCss: string;
+  hoverShadowCss: string;
 }>`
+  box-sizing: border-box;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
   gap: 4px;
-  min-height: ${EVENT_PILL_HEIGHT}px;
+  width: max-content;
+  max-width: none;
   height: ${EVENT_PILL_HEIGHT}px;
-  padding: 4px 12px;
+  min-height: ${EVENT_PILL_HEIGHT}px;
+  /* 10px top/right/bottom; 14px left (+4 for label). */
+  padding: ${EVENT_PILL_PADDING_Y}px ${EVENT_PILL_PADDING_X}px ${EVENT_PILL_PADDING_Y}px
+    ${EVENT_PILL_PADDING_LEFT}px;
+  border: none;
   border-radius: 999px;
-  border: 1px solid ${({ borderColor }) => borderColor};
   background: ${({ backgroundColor }) => backgroundColor};
-  max-width: 100%;
-  margin: 0 auto;
-  ${({ defaultShadow }) => defaultShadow ?? ''}
-  transition: box-shadow 0.2s ease, border-width 0.2s ease;
+  white-space: nowrap;
+  ${({ boxShadowCss }) => boxShadowCss}
+  transition: box-shadow 0.2s ease;
 
   .react-flow__node:not(.non-interactive):hover:not(.dragging) & {
-    ${({ hoverShadow }) => hoverShadow ?? ''}
+    ${({ hoverShadowCss }) => hoverShadowCss}
   }
+`;
 
-  .react-flow__node:not(.non-interactive).selected:not(.dragging) &,
-  .react-flow__node:not(.non-interactive).dragging & {
-    border-width: 2px;
-  }
+/** Figma “grouped” layer under the pill — inset, bottom-only edges. */
+const GroupStack = styled.div<{ $borderColor: string; $fillColor: string }>`
+  box-sizing: border-box;
+  height: ${EVENT_GROUP_STACK_HEIGHT}px;
+  margin: 0 16px;
+  pointer-events: none;
+  border-left: 1px solid ${({ $borderColor }) => $borderColor};
+  border-right: 1px solid ${({ $borderColor }) => $borderColor};
+  border-bottom: 1px solid ${({ $borderColor }) => $borderColor};
+  border-radius: 0 0 8px 8px;
+  background: ${({ $fillColor }) => $fillColor};
+  opacity: 0.5;
 `;
 
 export const LabelNode = memo<NodeProps>((props: NodeProps) => {
@@ -131,17 +167,15 @@ export const LabelNode = memo<NodeProps>((props: NodeProps) => {
     nodeClick,
     expandButtonClick,
     eventClickHandler,
+    relatedEventsClickHandler,
+    relatedEventsActive,
     highlightAsOrigin = false,
   } = props.data as LabelNodeViewModel;
 
   const { euiTheme } = useEuiTheme();
-  // Figma Graph viz (13969:1176) — X-small Level 2 for relationship/event labels.
-  const defaultShadow = GRAPH_NODE_SHADOW;
-  const hoverShadow = GRAPH_NODE_SHADOW;
   const zoom = useViewportZoom();
   const isMultipleNodesSelected = useMultipleNodesSelected();
   const showExpandButton = interactive && !isMultipleNodesSelected;
-  const showDetails = zoom >= GRAPH_SIMPLIFIED_ZOOM_THRESHOLD;
 
   const text = label ?? id;
   const isActive = Boolean(selected || dragging);
@@ -153,46 +187,35 @@ export const LabelNode = memo<NodeProps>((props: NodeProps) => {
     [numEvents, numAlerts]
   );
 
+  const isGroup =
+    analysis.isGroupOfEvents ||
+    analysis.isGroupOfAlerts ||
+    analysis.isGroupOfEventsAndAlerts;
+
+  // Figma: metadata (IP / geo) only on Single — never on Group.
+  const showDetails = !isGroup && zoom >= GRAPH_SIMPLIFIED_ZOOM_THRESHOLD;
+
   const pillTone = getEventPillTone(analysis);
   const pillColors = getEventPillColors(pillTone, isActive, euiTheme);
+  const pillBoxShadow = getEventPillBoxShadow(pillColors.borderColor, GRAPH_NODE_SHADOW);
   const edgeThroughColor = euiTheme.colors.borderBaseProminent;
   const originOutlineBorderColor =
     pillTone === 'alert' ? euiTheme.colors.borderStrongDanger : euiTheme.colors.borderBasePlain;
 
   const labelTextCss = css`
-    font-size: 10.5px;
-    line-height: 16px;
+    font-size: ${EVENT_PILL_LABEL_FONT_SIZE}px;
+    line-height: ${EVENT_PILL_LABEL_LINE_HEIGHT}px;
     font-weight: ${euiTheme.font.weight.semiBold};
     color: ${pillColors.textColor};
-    min-width: 0;
     text-align: center;
+    white-space: nowrap;
   `;
 
-  const renderLabelText = () => {
-    if (text.length <= MAX_LABEL_LENGTH) {
-      return (
-        <span css={labelTextCss} data-test-subj={TEST_SUBJ_LABEL_TEXT}>
-          {text}
-        </span>
-      );
-    }
-
-    const truncatedLabel = (
-      <EuiTextTruncate
-        data-test-subj={TEST_SUBJ_LABEL_TEXT}
-        truncation="middle"
-        text={text}
-        width={LABEL_PILL_TEXT_MAX_WIDTH}
-        css={labelTextCss}
-      />
-    );
-
-    return (
-      <EuiToolTip content={text} display="inline" data-test-subj={TEST_SUBJ_TOOLTIP}>
-        {truncatedLabel}
-      </EuiToolTip>
-    );
-  };
+  const renderLabelText = () => (
+    <span css={labelTextCss} data-test-subj={TEST_SUBJ_LABEL_TEXT}>
+      {text}
+    </span>
+  );
 
   return (
     <LabelNodeContainer data-test-subj={GRAPH_LABEL_NODE_ID}>
@@ -201,27 +224,40 @@ export const LabelNode = memo<NodeProps>((props: NodeProps) => {
         {highlightAsOrigin && (
           <OriginNodeOutline borderColor={originOutlineBorderColor} borderRadius="999px" />
         )}
-        <EventPill
-          data-test-subj={TEST_SUBJ_SHAPE}
-          backgroundColor={pillColors.backgroundColor}
-          borderColor={pillColors.borderColor}
-          defaultShadow={defaultShadow}
-          hoverShadow={hoverShadow}
-        >
-          {renderLabelText()}
-          <LabelNodeBadges
-            analysis={analysis}
-            isActive={isActive}
-            onEventClick={eventClickHandler}
-          />
-        </EventPill>
+        <PillColumn>
+          <EventPill
+            data-test-subj={TEST_SUBJ_SHAPE}
+            backgroundColor={pillColors.backgroundColor}
+            boxShadowCss={pillBoxShadow}
+            hoverShadowCss={pillBoxShadow}
+          >
+            {renderLabelText()}
+            <LabelNodeBadges
+              analysis={analysis}
+              isActive={isActive}
+              onEventClick={eventClickHandler}
+            />
+          </EventPill>
+          {isGroup && (
+            <GroupStack
+              data-test-subj={TEST_SUBJ_GROUP_STACK}
+              $borderColor={euiTheme.colors.borderBasePrimary}
+              $fillColor={euiTheme.colors.backgroundLightPrimary}
+              aria-hidden={true}
+            />
+          )}
+        </PillColumn>
 
         {interactive && (
           <>
             <NodeButton onClick={(e) => nodeClick?.(e, props)} css={pillHitTargetCss} />
             {showExpandButton && (
-              <PillExpandButton
-                onClick={(e, unToggleCallback) => expandButtonClick?.(e, props, unToggleCallback)}
+              <EventHoverActionsToolbar
+                onRelatedEventsClick={relatedEventsClickHandler}
+                relatedEventsActive={relatedEventsActive}
+                onExpandClick={(e, unToggleCallback) =>
+                  expandButtonClick?.(e, props, unToggleCallback)
+                }
               />
             )}
           </>

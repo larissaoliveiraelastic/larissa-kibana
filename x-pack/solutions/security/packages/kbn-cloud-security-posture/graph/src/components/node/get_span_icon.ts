@@ -8,6 +8,7 @@
 import awsIcon from '../../assets/icons/aws.svg';
 import awsEc2Icon from '../../assets/icons/aws_ec2.svg';
 import awsS3Icon from '../../assets/icons/aws_s3.svg';
+import gcpComputeIcon from '../../assets/icons/gcp_compute.svg';
 import groupEntitiesIcon from '../../assets/icons/group_entities.svg';
 import oktaIcon from '../../assets/icons/okta.svg';
 
@@ -16,6 +17,7 @@ const icons: Record<string, any> = {
   aws: awsIcon,
   aws_ec2: awsEc2Icon,
   aws_s3: awsS3Icon,
+  gcp_compute: gcpComputeIcon,
   group_entities: groupEntitiesIcon,
   okta: oktaIcon,
 };

@@ -61,6 +61,17 @@ interface ServicePanelContentProps {
    * system flyout, where sections are opened via {@link openDetailsPanel} instead.
    */
   hideHeaderIcons?: boolean;
+  /** When true, omit the nested Entity Graph preview (e.g. side panel already beside the full graph). */
+  hideGraphPreview?: boolean;
+  /** When true, omit AI entity summary (highlights). */
+  hideEntityHighlights?: boolean;
+  /** When true, omit resolution section. */
+  hideResolution?: boolean;
+  /**
+   * When true, always render {@link AssetCriticalityAccordion} (preview layout),
+   * even when an entity-store record is present.
+   */
+  showAssetCriticalityAccordion?: boolean;
 }
 
 export const ServicePanelContent = ({
@@ -81,18 +92,24 @@ export const ServicePanelContent = ({
   onShowEntity,
   riskScoreQueryId,
   hideHeaderIcons = false,
+  hideGraphPreview = false,
+  hideEntityHighlights = false,
+  hideResolution = false,
+  showAssetCriticalityAccordion = false,
 }: ServicePanelContentProps) => {
   const observedFields = useObservedServiceItems(observedService);
   const hasEntityResolutionLicense = useHasEntityResolutionLicense();
 
   return (
     <>
-      <EntityHighlightsAccordion
-        entityIdentifier={entityRecord?.entity?.id ?? serviceName}
-        entityType={EntityType.service}
-        entityRecord={entityRecord}
-        refetchEntityRecord={refetchEntityRecord}
-      />
+      {!hideEntityHighlights && (
+        <EntityHighlightsAccordion
+          entityIdentifier={entityRecord?.entity?.id ?? serviceName}
+          entityType={EntityType.service}
+          entityRecord={entityRecord}
+          refetchEntityRecord={refetchEntityRecord}
+        />
+      )}
       {riskScoreState.hasEngineBeenInstalled && riskScoreState.data?.length !== 0 && (
         <>
           <FlyoutRiskSummary
@@ -110,7 +127,7 @@ export const ServicePanelContent = ({
           <EuiHorizontalRule />
         </>
       )}
-      {entityStoreEntityId && (
+      {entityStoreEntityId && !hideGraphPreview && (
         <>
           <VisualizationsSection
             entityId={entityStoreEntityId}
@@ -122,7 +139,7 @@ export const ServicePanelContent = ({
           <EuiHorizontalRule margin="m" />
         </>
       )}
-      {entityStoreEntityId && hasEntityResolutionLicense && (
+      {entityStoreEntityId && !hideResolution && hasEntityResolutionLicense && (
         <>
           <ResolutionSection
             entityId={entityStoreEntityId}
@@ -135,7 +152,7 @@ export const ServicePanelContent = ({
           <EuiHorizontalRule />
         </>
       )}
-      {!entityRecord && (
+      {(!entityRecord || showAssetCriticalityAccordion) && (
         <AssetCriticalityAccordion
           entity={{ name: serviceName, type: EntityType.service }}
           onChange={onAssetCriticalityChange}

@@ -120,6 +120,15 @@ export interface GraphProps extends CommonProps {
    * When true, origin entities and events are outlined with a dashed border.
    */
   highlightOriginsOnly?: boolean;
+  /**
+   * Node ids that should stay selected (e.g. entity details side panel is open for that node).
+   * When set, React Flow selection is driven by this list.
+   */
+  selectedNodeIds?: string[];
+  /**
+   * Called when the user clicks the empty graph pane (clears selection / closes details).
+   */
+  onPaneClick?: () => void;
 }
 
 const nodeTypes = {
@@ -172,6 +181,8 @@ export const Graph = memo<GraphProps>(
     children,
     onCenterGraphAfterRefresh,
     highlightOriginsOnly = false,
+    selectedNodeIds,
+    onPaneClick,
     css: containerCss,
     onPointerDown,
     ...rest
@@ -200,14 +211,41 @@ export const Graph = memo<GraphProps>(
     const layoutPositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map());
     const [useBundledEdgeRouting, setUseBundledEdgeRouting] = useState(true);
 
+    const selectedNodeIdsRef = useRef<string[] | undefined>(selectedNodeIds);
+    selectedNodeIdsRef.current = selectedNodeIds;
+
+    const withForcedSelection = useCallback((layoutedNodes: Array<Node<NodeViewModel>>) => {
+      const ids = selectedNodeIdsRef.current;
+      if (!ids?.length) {
+        return layoutedNodes.map((node) =>
+          node.selected ? { ...node, selected: false } : node
+        );
+      }
+      const selectedSet = new Set(ids);
+      return layoutedNodes.map((node) => ({
+        ...node,
+        selected: selectedSet.has(node.id),
+      }));
+    }, []);
+
     const applyLayoutedNodes = useCallback(
       (layoutedNodes: Array<Node<NodeViewModel>>) => {
         layoutPositionsRef.current = captureLayoutPositions(layoutedNodes);
         setUseBundledEdgeRouting(true);
-        setNodes(layoutedNodes);
+        setNodes(withForcedSelection(layoutedNodes));
       },
-      [setNodes]
+      [setNodes, withForcedSelection]
     );
+
+    // Keep details-panel selection in sync (and clear when the panel closes).
+    useEffect(() => {
+      setNodes((currentNodes) => {
+        if (currentNodes.length === 0) {
+          return currentNodes;
+        }
+        return withForcedSelection(currentNodes);
+      });
+    }, [selectedNodeIds, setNodes, withForcedSelection]);
 
     const handleNodesChange = useCallback(
       (changes: NodeChange<Node<NodeViewModel>>[]) => {
@@ -288,20 +326,22 @@ export const Graph = memo<GraphProps>(
         );
 
         setNodes((currentNodes) =>
-          initialNodes.map((node) => {
-            const existing = currentNodes.find((current) => current.id === node.id);
-            if (!existing) {
-              return node;
-            }
+          withForcedSelection(
+            initialNodes.map((node) => {
+              const existing = currentNodes.find((current) => current.id === node.id);
+              if (!existing) {
+                return node;
+              }
 
-            return {
-              ...node,
-              position: existing.position,
-              width: existing.width,
-              height: existing.height,
-              measured: existing.measured,
-            };
-          })
+              return {
+                ...node,
+                position: existing.position,
+                width: existing.width,
+                height: existing.height,
+                measured: existing.measured,
+              };
+            })
+          )
         );
         setEdges(initialEdges);
       };
@@ -423,6 +463,7 @@ export const Graph = memo<GraphProps>(
       setNodes,
       setEdges,
       applyLayoutedNodes,
+      withForcedSelection,
       isGraphInteractive,
       highlightOriginsOnly,
       onCenterGraphAfterRefresh,
@@ -611,6 +652,7 @@ export const Graph = memo<GraphProps>(
                   snapGrid={[GRID_SIZE, GRID_SIZE]} // Snap nodes to a 10px grid
                   onNodesChange={handleNodesChange}
                   onEdgesChange={onEdgesChange}
+                  onPaneClick={onPaneClick}
                   proOptions={{ hideAttribution: true }}
                   // React Flow overview-style interaction:
                   // - left-drag empty canvas pans

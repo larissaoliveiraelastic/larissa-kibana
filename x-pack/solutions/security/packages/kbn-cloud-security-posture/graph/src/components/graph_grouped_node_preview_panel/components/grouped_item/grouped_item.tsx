@@ -59,9 +59,9 @@ export const GroupedItem = memo(
     }
 
     return (
-      <Panel isAlert={item.itemType === DOCUMENT_TYPE_ALERT}>
+      <Panel isAlert={item.itemType === DOCUMENT_TYPE_ALERT} grow={false}>
         <EuiFlexGroup direction="column" gutterSize="s" responsive={false}>
-          <EuiFlexItem>
+          <EuiFlexItem grow={false}>
             <HeaderRow
               item={item}
               scopeId={scopeId}
@@ -70,21 +70,23 @@ export const GroupedItem = memo(
             />
           </EuiFlexItem>
 
-          {item.timestamp && (
-            <EuiFlexItem>
+          {item.itemType !== DOCUMENT_TYPE_ENTITY && item.timestamp && (
+            <EuiFlexItem grow={false}>
               <TimestampRow timestamp={item.timestamp} />
             </EuiFlexItem>
           )}
 
           {item.itemType !== DOCUMENT_TYPE_ENTITY && item.actor && item.target && (
-            <EuiFlexItem>
+            <EuiFlexItem grow={false}>
               <ActorsRow actor={item.actor} target={item.target} />
             </EuiFlexItem>
           )}
 
-          <EuiFlexItem>
-            <MetadataRow item={item} />
-          </EuiFlexItem>
+          {item.itemType !== DOCUMENT_TYPE_ENTITY && (
+            <EuiFlexItem grow={false}>
+              <MetadataRow item={item} />
+            </EuiFlexItem>
+          )}
         </EuiFlexGroup>
       </Panel>
     );

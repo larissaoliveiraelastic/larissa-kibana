@@ -20,8 +20,9 @@ export const PanelBody = (props: CommonPropsWithChildren) => {
         flex-direction: column;
         height: 100%;
         min-height: 0;
-        gap: ${euiTheme.size.s};
-        padding: ${euiTheme.size.s} ${euiTheme.size.base};
+        gap: ${euiTheme.size.m};
+        padding: ${euiTheme.size.m} ${euiTheme.size.base} ${euiTheme.size.base};
+        box-sizing: border-box;
       `}
       {...props}
     />
@@ -50,10 +51,13 @@ export const List = (props: CommonPropsWithChildren) => {
       css={css`
         display: flex;
         flex-direction: column;
-        flex: 1;
+        flex: 1 1 auto;
         min-height: 0;
         overflow-y: auto;
         width: 100%;
+        margin: 0;
+        padding: 0;
+        list-style: none;
         gap: ${euiTheme.size.s};
       `}
       {...props}

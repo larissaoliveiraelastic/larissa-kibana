@@ -15,11 +15,11 @@ export const ORIGIN_NODE_OUTLINE_OFFSET = 6;
 /** Dashed origin highlight stroke width. */
 export const ORIGIN_NODE_OUTLINE_BORDER_WIDTH = 2;
 
-/** Outline radius for full-size entity cards (card radius 4 + outline offset). */
-export const ORIGIN_ENTITY_OUTLINE_BORDER_RADIUS = 8;
+/** Outline radius for full-size entity cards (card 12px + outline offset 6px). */
+export const ORIGIN_ENTITY_OUTLINE_BORDER_RADIUS = 18;
 
-/** Outline radius for simplified (zoomed-out) entity icon boxes. */
-export const ORIGIN_ENTITY_SIMPLIFIED_OUTLINE_BORDER_RADIUS = 8;
+/** Outline radius for simplified (zoomed-out) entity icon boxes (icon 6px + offset 6px). */
+export const ORIGIN_ENTITY_SIMPLIFIED_OUTLINE_BORDER_RADIUS = 12;
 
 export interface OriginNodeOutlineProps {
   borderColor: string;

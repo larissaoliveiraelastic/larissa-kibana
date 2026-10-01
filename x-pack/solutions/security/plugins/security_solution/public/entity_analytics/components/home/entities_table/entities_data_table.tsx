@@ -66,8 +66,8 @@ import type { CriticalityLevelWithUnassigned } from '../../../../../common/entit
 import { AssetCriticalityBadge } from '../../asset_criticality';
 import { LastUpdated } from '../last_updated';
 import { EntityAlertsCell } from '../entity_alerts_cell';
+import { getEntityRecordRiskForListDisplay } from '../../entity_store/helpers';
 import { RiskScoreCell } from './risk_score_cell';
-
 import { AdditionalControls } from './additional_controls';
 import { EntitiesEmptyState } from './empty_state';
 import { DataViewContext, type EntitiesTableConfig } from '.';
@@ -496,8 +496,21 @@ export const EntitiesDataTable = ({
         return <AssetCriticalityBadge criticalityLevel={value} />;
       },
       [ENTITY_FIELDS.ENTITY_RISK]: ({ row }: DataGridCellValueElementProps) => {
-        const value = row.flattened[ENTITY_FIELDS.ENTITY_RISK] as number | undefined;
-        return <RiskScoreCell riskScore={value != null ? Number(value) : undefined} />;
+        const flattened = row.flattened[ENTITY_FIELDS.ENTITY_RISK] as number | undefined;
+        const fromSource = row.raw?._source
+          ? getEntityRecordRiskForListDisplay(row.raw._source as EntityStoreRecord)
+          : null;
+        // Prefer a positive score from flattened entity.risk; if reset-to-zero
+        // wiped it to 0/Unknown, fall back to typed host|user|service.risk.
+        const flattenedNum = flattened != null ? Number(flattened) : undefined;
+        const sourceNum = fromSource?.calculated_score_norm;
+        const value =
+          flattenedNum != null && flattenedNum > 0
+            ? flattenedNum
+            : sourceNum != null && sourceNum > 0
+              ? sourceNum
+              : flattenedNum ?? sourceNum ?? undefined;
+        return <RiskScoreCell riskScore={value} />;
       },
       alerts: ({ rowIndex }: EuiDataGridCellValueElementProps) => {
         const doc = rows[rowIndex];

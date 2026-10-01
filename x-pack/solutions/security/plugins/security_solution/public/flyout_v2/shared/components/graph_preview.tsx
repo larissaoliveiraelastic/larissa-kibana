@@ -28,47 +28,73 @@ import {
   GRAPH_BACKGROUND_DOT_GAP,
   GRAPH_BACKGROUND_DOT_SIZE,
 } from '@kbn/cloud-security-posture-graph/src/components/constants';
-import groupEntitiesIcon from '@kbn/cloud-security-posture-graph/src/assets/icons/group_entities.svg';
+import { getSpanIcon } from '@kbn/cloud-security-posture-graph/src/components/node/get_span_icon';
 import { GRAPH_PREVIEW_TEST_ID, GRAPH_PREVIEW_LOADING_TEST_ID } from './test_ids';
 
-/** Resolved stacked-cards SVG — EuiIcon cannot resolve the bare `group_entities` name. */
-const GROUP_ENTITIES_ICON = groupEntitiesIcon;
+/** Resolve brand SVG icons (aws_ec2, …) the same way expanded graph cards do. */
+const resolvePreviewIcon = (icon?: string): IconType | undefined => {
+  if (!icon) return undefined;
+  return getSpanIcon(icon) ?? icon;
+};
+
+/** Compact preview risk — whole numbers per Figma group preview (e.g. `90` / `50`). */
+const formatPreviewRiskScore = (score: number): string => String(Math.round(score));
 
 const ENTITY_SHAPES = new Set(['hexagon', 'pentagon', 'ellipse', 'rectangle', 'diamond']);
 
-/** Preview card radius — match Figma entity cards (~8px). */
-const NODE_PILL_BORDER_RADIUS = 8;
-const NODE_ICON_BORDER_RADIUS = 6;
-/** Match Figma preview entity card icon (24px glyph). */
+/**
+ * Preview cards — Figma Graph preview (node 14842:2883).
+ * @see https://www.figma.com/design/NKGsPiGKZ4rEwRVBnuctZ2/-9.5--Graph-viz---Component-Library?node-id=14842-2883
+ */
+const NODE_PILL_BORDER_RADIUS = 12;
+/** Figma Entity Icon: size/small = 8px. */
+const NODE_ICON_BORDER_RADIUS = 8;
+/** Figma preview entity card icon (24px glyph in 32px box). */
 const NODE_ICON_SIZE = 24;
-/** Match Figma card padding (8px). */
+const NODE_ICON_BOX_SIZE = 32;
+/** Figma card padding (8px). */
 const NODE_PILL_PADDING = 8;
-const PREVIEW_CANVAS_PADDING = 16;
+const PREVIEW_CANVAS_PADDING = 12;
 const PREVIEW_CANVAS_MIN_HEIGHT = 200;
 const RISK_BADGE_HEIGHT = 20;
+/** Figma Badge spaces/s = 8px. */
 const RISK_BADGE_PADDING_X = 8;
+/** Floor for dual range badges `50 - 90` (two pills + dash + gaps). */
+const RISK_RANGE_MIN_CONTENT_WIDTH = 82;
+/** Outline count pill beside group subtype title. */
+const GROUP_COUNT_PILL_SIZE = 28;
 /**
- * Min content width for a risk badge showing `98.72` or `Unknown` (12px medium + horizontal padding).
- * Cards must never shrink below icon + gap + this, or the badge is clipped.
+ * Subtype label floor when the flyout is at minimum width ("AWS…" / "GCP…").
+ * No max — when the preview grows, the label expands to the full subtype name.
  */
-const RISK_BADGE_MIN_CONTENT_WIDTH = 56;
-const NODE_ICON_BOX_SIZE = NODE_ICON_SIZE + 8;
+const GROUP_SUBTYPE_LABEL_MIN_WIDTH = 36;
+/** Figma: 8px between entity icon and name column. */
 const NODE_ICON_TO_TEXT_GAP = 8;
+/** Figma: 4px between header children (icon/count/subtype/risk). */
+const GROUP_HEADER_GAP = 4;
 
 /**
- * Floor width for preview entity cards so the risk badge never clips.
- * icon box + gap + badge + horizontal padding.
+ * Card floors for the narrowest flyout (Figma preview ~161 / ~206).
+ * Cards grow with the preview container — no hard max — so names un-truncate
+ * on resize instead of staying clipped at the compact Figma width.
  */
-const PREVIEW_CARD_MIN_WIDTH =
-  NODE_PILL_PADDING * 2 + NODE_ICON_BOX_SIZE + NODE_ICON_TO_TEXT_GAP + RISK_BADGE_MIN_CONTENT_WIDTH;
-/** Wide enough for group titles + dual risk pills (`90.01 - 50.00`). */
-const PREVIEW_CARD_MAX_WIDTH = 180;
-const GROUP_STACK_GAP = 12;
+const PREVIEW_CARD_MIN_WIDTH = 140;
+const PREVIEW_GROUP_CARD_MIN_WIDTH =
+  NODE_PILL_PADDING * 2 +
+  NODE_ICON_BOX_SIZE +
+  GROUP_HEADER_GAP +
+  GROUP_COUNT_PILL_SIZE +
+  GROUP_HEADER_GAP +
+  GROUP_SUBTYPE_LABEL_MIN_WIDTH +
+  GROUP_HEADER_GAP +
+  RISK_RANGE_MIN_CONTENT_WIDTH;
+/** Figma stack: second group at y=130 after first at y=58 (h=48) → 24px gap. */
+const GROUP_STACK_GAP = 24;
 const CONNECTOR_GAP = 8;
 const FANOUT_WIDTH = 28;
 const ARROW_SIZE = 5;
-/** Relationships trunk floor — keep “8 rela…” readable next to cards. */
-const RELATIONSHIPS_TRUNK_MIN_WIDTH = 72;
+/** Relationships trunk floor — keep “5 rela…” readable next to cards. */
+const RELATIONSHIPS_TRUNK_MIN_WIDTH = 64;
 
 type PreviewEntityNode = {
   id: string;
@@ -77,6 +103,8 @@ type PreviewEntityNode = {
   tag?: string;
   color?: string;
   count?: number;
+  /** Entity subtype — group cards show this as the title. */
+  subType?: string;
   riskScore?: number;
   riskScoreMin?: number;
   riskScoreMax?: number;
@@ -92,6 +120,7 @@ type RiskGroup = {
   riskScoreMin?: number;
   riskScoreMax?: number;
   icon?: string;
+  /** Subtype title for API group cards (e.g. "GCP Compute Instance"). */
   label?: string;
 };
 
@@ -154,6 +183,11 @@ const pickMainEntityNode = (
 const isEntityNode = (node: NodeDataModel): boolean =>
   ENTITY_SHAPES.has((node as { shape?: string }).shape ?? '');
 
+/** Relationship + event/alert pills — same nodes the expanded graph renders. */
+const isConnectorNode = (node: NodeDataModel): boolean => {
+  const shape = (node as { shape?: string }).shape;
+  return shape === 'relationship' || shape === 'label';
+};
 const getPreviewRiskLevel = (score?: number): PreviewRiskLevel => {
   if (score === undefined) return 'unknown';
   if (score >= 90) return 'critical';
@@ -256,8 +290,10 @@ const groupNeighborsForPreview = (neighbors: PreviewEntityNode[]): RiskGroup[] =
         riskScore: score ?? 0,
         riskScoreMin: neighbor.riskScoreMin,
         riskScoreMax: neighbor.riskScoreMax,
-        icon: GROUP_ENTITIES_ICON,
-        label: neighbor.label,
+        // Real subtype icon — same rule as expanded graph group cards.
+        icon: neighbor.icon,
+        // Group title is the entity subtype (aggregated by subtype).
+        label: neighbor.subType ?? neighbor.label,
       });
       return;
     }
@@ -352,7 +388,7 @@ const PreviewRiskBadge = ({ score }: PreviewRiskBadgeProps) => {
         line-height: ${euiTheme.size.base};
       `}
     >
-      {score.toFixed(2)}
+      {formatPreviewRiskScore(score)}
     </EuiBadge>
   );
 };
@@ -408,9 +444,9 @@ interface NodeCardProps {
 }
 
 /**
- * Preview entity card — same structure as expanded graph CardNode (Figma):
- * Single: [icon] name / Hosts …… [risk]
- * Group:  [icon] [count] title / Hosts …… [max] - [min] + stack
+ * Preview entity card — Figma Graph preview (14842:2883):
+ * Single: [icon 8px] name/Host  [4px] [risk]
+ * Group:  [icon] [4px] [count] [4px] subtype [4px] [min] - [max] + stack
  */
 const NodeCard = ({
   label,
@@ -421,58 +457,96 @@ const NodeCard = ({
   riskUnknown = false,
   isGroup = false,
   count,
-  entityTypeLabel = 'Hosts',
+  entityTypeLabel = 'Host',
 }: NodeCardProps) => {
   const { euiTheme } = useEuiTheme();
   const fillColor = euiTheme.colors.backgroundBasePlain;
   const borderColor = euiTheme.colors.borderBasePlain;
   const iconBg = euiTheme.colors.backgroundBaseSubdued;
   const iconColor = '#000000';
+  // Brand SVGs (aws_ec2, gcp_compute, …) keep their own fills — don't force black.
+  const usesBrandSvg = typeof icon !== 'string';
 
-  const riskRangeHigh =
-    riskScoreMin !== undefined && riskScoreMax !== undefined
-      ? Math.max(riskScoreMin, riskScoreMax)
-      : undefined;
+  // Group range: min first, then max (e.g. 50 - 90) — same as expanded graph.
   const riskRangeLow =
     riskScoreMin !== undefined && riskScoreMax !== undefined
       ? Math.min(riskScoreMin, riskScoreMax)
       : undefined;
+  const riskRangeHigh =
+    riskScoreMin !== undefined && riskScoreMax !== undefined
+      ? Math.max(riskScoreMin, riskScoreMax)
+      : undefined;
 
   const riskBadges = riskUnknown ? (
     <PreviewUnknownRiskBadge />
-  ) : riskRangeHigh !== undefined && riskRangeLow !== undefined ? (
+  ) : riskRangeLow !== undefined && riskRangeHigh !== undefined ? (
     <div
       css={css`
-        display: flex;
-        flex-shrink: 0;
+        display: inline-flex;
+        flex: 0 0 auto;
         align-items: center;
-        gap: 4px;
+        gap: 2px;
+        max-width: 100%;
       `}
     >
-      <PreviewRiskBadge score={riskRangeHigh} />
+      <PreviewRiskBadge score={riskRangeLow} />
       <EuiText
         size="xs"
         css={css`
-          color: ${euiTheme.colors.textParagraph};
+          flex: 0 0 auto;
+          color: ${euiTheme.colors.textSubdued};
           line-height: ${euiTheme.size.base};
+          font-size: 12px;
         `}
       >
         {'-'}
       </EuiText>
-      <PreviewRiskBadge score={riskRangeLow} />
+      <PreviewRiskBadge score={riskRangeHigh} />
     </div>
   ) : riskScore !== undefined ? (
     <PreviewRiskBadge score={riskScore} />
   ) : null;
 
+  const entityIcon =
+    icon != null ? (
+      <div
+        css={css`
+          width: ${NODE_ICON_BOX_SIZE}px;
+          height: ${NODE_ICON_BOX_SIZE}px;
+          border-radius: ${NODE_ICON_BORDER_RADIUS}px;
+          background: ${iconBg};
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+          overflow: hidden;
+        `}
+      >
+        <EuiIcon
+          type={icon}
+          size="l"
+          color={usesBrandSvg ? undefined : iconColor}
+          aria-hidden={true}
+          css={css`
+            svg {
+              width: ${NODE_ICON_SIZE}px;
+              height: ${NODE_ICON_SIZE}px;
+            }
+          `}
+        />
+      </div>
+    ) : null;
+
   return (
     <div
       css={css`
         position: relative;
+        box-sizing: border-box;
+        /* Always fill the grid/flex slot — names grow with the flyout. */
         width: 100%;
-        min-width: ${PREVIEW_CARD_MIN_WIDTH}px;
-        max-width: ${PREVIEW_CARD_MAX_WIDTH}px;
-        flex-shrink: 0;
+        max-width: 100%;
+        min-width: 0;
+        flex-shrink: 1;
         margin-bottom: ${isGroup ? 6 : 0}px;
       `}
     >
@@ -490,7 +564,7 @@ const NodeCard = ({
             border-bottom: 1px solid ${borderColor};
             border-radius: 0 0 ${NODE_PILL_BORDER_RADIUS}px ${NODE_PILL_BORDER_RADIUS}px;
             background: ${fillColor};
-            opacity: 0.72;
+            opacity: 0.8;
             z-index: 0;
           `}
         />
@@ -502,10 +576,11 @@ const NodeCard = ({
           display: flex;
           flex-direction: row;
           align-items: center;
-          gap: ${NODE_ICON_TO_TEXT_GAP}px;
+          gap: ${GROUP_HEADER_GAP}px;
           box-sizing: border-box;
           width: 100%;
-          min-width: 0;
+          max-width: 100%;
+          overflow: hidden;
           border: 1px solid ${borderColor};
           border-radius: ${NODE_PILL_BORDER_RADIUS}px;
           padding: ${NODE_PILL_PADDING}px;
@@ -513,69 +588,80 @@ const NodeCard = ({
           box-shadow: 0 1px 2px 0 rgba(7, 16, 31, 0.06);
         `}
       >
-        {icon && (
-          <div
-            css={css`
-              width: ${NODE_ICON_BOX_SIZE}px;
-              height: ${NODE_ICON_BOX_SIZE}px;
-              border-radius: ${NODE_ICON_BORDER_RADIUS}px;
-              background: ${iconBg};
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              flex-shrink: 0;
-              padding: 4px;
-            `}
-          >
-            <EuiIcon type={icon} size="l" color={iconColor} aria-hidden={true} />
-          </div>
-        )}
-        <div
-          css={css`
-            display: flex;
-            flex-direction: column;
-            align-items: stretch;
-            gap: 2px;
-            min-width: 0;
-            flex: 1;
-            overflow: visible;
-          `}
-        >
-          {isGroup ? (
-            <>
+        {isGroup ? (
+          <>
+            {entityIcon}
+            {count !== undefined && (
+              <EuiBadge
+                color="hollow"
+                css={css`
+                  flex-shrink: 0;
+                  height: ${RISK_BADGE_HEIGHT}px;
+                  display: inline-flex;
+                  align-items: center;
+                  padding: 0 ${RISK_BADGE_PADDING_X}px;
+                  font-weight: ${euiTheme.font.weight.medium};
+                  font-size: 12px;
+                  line-height: ${euiTheme.size.base};
+                `}
+              >
+                {count > 99 ? '99+' : count}
+              </EuiBadge>
+            )}
+            <EuiText
+              size="xs"
+              title={label}
+              css={css`
+                /* Grow into free card space; ellipsis only when the flyout is narrow. */
+                flex: 1 1 0;
+                min-width: 0;
+                font-weight: ${euiTheme.font.weight.semiBold};
+                color: ${euiTheme.colors.textParagraph};
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                line-height: ${euiTheme.size.base};
+              `}
+            >
+              {label}
+            </EuiText>
+            <div
+              css={css`
+                flex: 0 0 auto;
+              `}
+            >
+              {riskBadges}
+            </div>
+          </>
+        ) : (
+          <>
+            <div
+              css={css`
+                display: flex;
+                flex-direction: row;
+                align-items: center;
+                gap: ${NODE_ICON_TO_TEXT_GAP}px;
+                min-width: 0;
+                flex: 1 1 0;
+              `}
+            >
+              {entityIcon}
               <div
                 css={css`
                   display: flex;
-                  align-items: center;
-                  gap: 6px;
+                  flex-direction: column;
+                  align-items: stretch;
                   min-width: 0;
+                  flex: 1 1 0;
+                  overflow: hidden;
                 `}
               >
-                {count !== undefined && (
-                  <EuiBadge
-                    color="accent"
-                    css={css`
-                      flex-shrink: 0;
-                      height: ${RISK_BADGE_HEIGHT}px;
-                      min-width: ${RISK_BADGE_HEIGHT}px;
-                      padding: 0 4px;
-                      background-color: ${euiTheme.colors.backgroundFilledAccent};
-                      color: ${euiTheme.colors.textInverse};
-                      border: none;
-                      border-radius: ${euiTheme.border.radius.small};
-                      font-size: 12px;
-                      font-weight: ${euiTheme.font.weight.medium};
-                      line-height: 12px;
-                    `}
-                  >
-                    {count > 99 ? '99+' : count}
-                  </EuiBadge>
-                )}
                 <EuiText
                   size="xs"
+                  title={label}
                   css={css`
-                    font-weight: ${euiTheme.font.weight.bold};
-                    color: ${euiTheme.colors.textHeading};
+                    font-weight: ${euiTheme.font.weight.semiBold};
+                    color: ${euiTheme.colors.textParagraph};
                     white-space: nowrap;
                     overflow: hidden;
                     text-overflow: ellipsis;
@@ -585,59 +671,28 @@ const NodeCard = ({
                 >
                   {label}
                 </EuiText>
-              </div>
-              <div
-                css={css`
-                  display: flex;
-                  align-items: center;
-                  justify-content: space-between;
-                  gap: 6px;
-                  min-width: 0;
-                `}
-              >
                 <EuiText
                   size="xs"
                   css={css`
                     color: ${euiTheme.colors.textSubdued};
                     white-space: nowrap;
                     line-height: ${euiTheme.size.base};
+                    font-weight: ${euiTheme.font.weight.regular};
                   `}
                 >
                   {entityTypeLabel}
                 </EuiText>
-                {riskBadges}
               </div>
-            </>
-          ) : (
-            <>
-              <EuiText
-                size="xs"
-                css={css`
-                  font-weight: ${euiTheme.font.weight.bold};
-                  color: ${euiTheme.colors.textHeading};
-                  white-space: nowrap;
-                  overflow: hidden;
-                  text-overflow: ellipsis;
-                  max-width: 100%;
-                  line-height: ${euiTheme.size.base};
-                `}
-              >
-                {label}
-              </EuiText>
-              <EuiText
-                size="xs"
-                css={css`
-                  color: ${euiTheme.colors.textSubdued};
-                  white-space: nowrap;
-                  line-height: ${euiTheme.size.base};
-                `}
-              >
-                {entityTypeLabel}
-              </EuiText>
-            </>
-          )}
-        </div>
-        {!isGroup && riskBadges}
+            </div>
+            <div
+              css={css`
+                flex: 0 0 auto;
+              `}
+            >
+              {riskBadges}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
@@ -665,11 +720,16 @@ const RelationshipsPill = ({ count }: RelationshipsPillProps) => {
         position: relative;
         z-index: 1;
         flex-shrink: 1;
-        /* Keep enough room to show at least "8 rela…" */
-        min-width: 64px;
+        box-sizing: border-box;
+        height: 32px;
+        /* Keep enough room to show at least "5 rela…" */
+        min-width: 56px;
         max-width: 100%;
-        padding: 4px 10px;
-        border-radius: 999px;
+        padding: 4px 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 99px;
         background: ${euiTheme.colors.backgroundBasePlain};
         border: 1px solid ${euiTheme.colors.borderBasePlain};
         white-space: nowrap;
@@ -681,8 +741,9 @@ const RelationshipsPill = ({ count }: RelationshipsPillProps) => {
       <EuiText
         size="xs"
         css={css`
-          font-weight: ${euiTheme.font.weight.medium};
-          /* Figma: relationship label is black, not primary blue */
+          font-weight: ${euiTheme.font.weight.semiBold};
+          /* Figma Fine print / Semi bold ~10.5 */
+          font-size: 10.5px;
           color: ${euiTheme.colors.textParagraph};
           line-height: ${euiTheme.size.base};
           overflow: hidden;
@@ -857,9 +918,7 @@ export const GraphPreview: React.FC<GraphPreviewProps> = memo(
 
       const direct = adjacency.get(main.id) ?? new Set<string>();
       const neighborIds = new Set<string>();
-      let edgeHops = 0;
       direct.forEach((mid) => {
-        edgeHops += 1;
         if (entityNodes.some((n) => n.id === mid)) {
           neighborIds.add(mid);
           return;
@@ -874,8 +933,9 @@ export const GraphPreview: React.FC<GraphPreviewProps> = memo(
         .filter((neighbor): neighbor is PreviewEntityNode => Boolean(neighbor));
 
       const groups = groupNeighborsForPreview(entityNeighbors);
-      // Prefer labeled relationship/event edges when present; else neighbor count.
-      const relationships = Math.max(edgeHops, entityNeighbors.length);
+      // Must match expanded graph: same relationship/event pills, same count.
+      // Do not invent a smaller number via edge-hop heuristics.
+      const relationships = nodes.filter(isConnectorNode).length;
 
       return {
         mainNode: main,
@@ -883,7 +943,6 @@ export const GraphPreview: React.FC<GraphPreviewProps> = memo(
         riskGroups: groups,
       };
     }, [data, originEntityId]);
-
     if (isLoading) return <LoadingComponent />;
 
     if (isError || !mainNode) {
@@ -921,14 +980,22 @@ export const GraphPreview: React.FC<GraphPreviewProps> = memo(
           container-type: inline-size;
           container-name: graph-preview;
           box-sizing: border-box;
-          display: flex;
-          flex-direction: row;
+          /*
+            Grid forces origin + group columns to share free width (1fr each).
+            Flex alone left empty dotted space while cards stayed at content size.
+          */
+          display: grid;
+          grid-template-columns:
+            minmax(${PREVIEW_CARD_MIN_WIDTH}px, 1fr)
+            minmax(${RELATIONSHIPS_TRUNK_MIN_WIDTH}px, max-content)
+            minmax(${PREVIEW_GROUP_CARD_MIN_WIDTH + FANOUT_WIDTH}px, 1fr);
           align-items: center;
-          gap: ${CONNECTOR_GAP}px;
+          column-gap: ${CONNECTOR_GAP}px;
           width: 100%;
           min-width: 0;
           overflow: hidden;
           padding: ${PREVIEW_CANVAS_PADDING}px;
+          padding-bottom: ${PREVIEW_CANVAS_PADDING + 8}px;
           min-height: ${PREVIEW_CANVAS_MIN_HEIGHT}px;
           border: 1px solid ${canvasBorder};
           border-radius: ${euiTheme.border.radius.medium};
@@ -941,16 +1008,19 @@ export const GraphPreview: React.FC<GraphPreviewProps> = memo(
 
           @container graph-preview (max-width: ${PREVIEW_CARD_MIN_WIDTH * 2 + RELATIONSHIPS_TRUNK_MIN_WIDTH + FANOUT_WIDTH + PREVIEW_CANVAS_PADDING * 2}px) {
             padding: 12px;
-            gap: 4px;
+            column-gap: 4px;
+            grid-template-columns:
+              minmax(0, 1fr)
+              minmax(56px, max-content)
+              minmax(0, 1fr);
           }
         `}
       >
-        {/* Origin entity — never shrink below badge-safe card floor */}
+        {/* Origin entity — 1fr column grows with the flyout */}
         <div
           css={css`
-            flex: 0 1 ${PREVIEW_CARD_MAX_WIDTH}px;
-            min-width: ${PREVIEW_CARD_MIN_WIDTH}px;
-            max-width: ${PREVIEW_CARD_MAX_WIDTH}px;
+            min-width: 0;
+            width: 100%;
           `}
         >
           <NodeCard
@@ -961,119 +1031,110 @@ export const GraphPreview: React.FC<GraphPreviewProps> = memo(
           />
         </div>
 
-        {/*
-          Continuous connector + groups in ONE row so the trunk line never
-          breaks between the relationships pill and the fan-out arrows.
-        */}
+        {/* Trunk through relationships pill */}
         <div
           css={css`
             display: flex;
-            flex-direction: row;
-            align-items: stretch;
-            flex: 1 1 auto;
-            min-width: ${RELATIONSHIPS_TRUNK_MIN_WIDTH + FANOUT_WIDTH + PREVIEW_CARD_MIN_WIDTH}px;
+            align-items: center;
+            justify-content: center;
+            min-width: ${RELATIONSHIPS_TRUNK_MIN_WIDTH}px;
+            max-width: 160px;
+            width: 100%;
+            position: relative;
+            overflow: visible;
+            justify-self: stretch;
           `}
         >
-          {/* Trunk through relationships pill */}
+          <div
+            aria-hidden={true}
+            css={css`
+              position: absolute;
+              left: -${CONNECTOR_GAP}px;
+              right: -2px;
+              top: 50%;
+              height: 1px;
+              background: ${edgeColor};
+              z-index: 0;
+            `}
+          />
+          {relationshipCount > 0 && <RelationshipsPill count={relationshipCount} />}
+        </div>
+
+        {/* Fan-out + neighbor groups — 1fr column grows with the flyout */}
+        {riskGroups.length > 0 ? (
           <div
             css={css`
               display: flex;
-              align-items: center;
-              justify-content: center;
-              flex: 1 1 ${RELATIONSHIPS_TRUNK_MIN_WIDTH}px;
-              min-width: ${RELATIONSHIPS_TRUNK_MIN_WIDTH}px;
-              max-width: 160px;
-              position: relative;
-              overflow: visible;
+              flex-direction: row;
+              align-items: stretch;
+              min-width: 0;
+              width: 100%;
             `}
           >
             <div
-              aria-hidden={true}
               css={css`
-                position: absolute;
-                /* Bridge the gap from the origin card into the fan-out spine */
-                left: -${CONNECTOR_GAP}px;
-                right: -2px;
-                top: 50%;
-                height: 1px;
-                background: ${edgeColor};
-                z-index: 0;
-              `}
-            />
-            {relationshipCount > 0 && <RelationshipsPill count={relationshipCount} />}
-          </div>
-
-          {/* Fan-out + neighbor groups */}
-          {riskGroups.length > 0 && (
-            <div
-              css={css`
-                display: flex;
-                flex-direction: row;
-                align-items: stretch;
-                flex: 0 1 ${PREVIEW_CARD_MAX_WIDTH + FANOUT_WIDTH}px;
-                min-width: ${PREVIEW_CARD_MIN_WIDTH + FANOUT_WIDTH}px;
-                max-width: ${PREVIEW_CARD_MAX_WIDTH + FANOUT_WIDTH}px;
+                position: relative;
+                width: ${FANOUT_WIDTH}px;
+                flex: 0 0 ${FANOUT_WIDTH}px;
+                align-self: stretch;
+                margin-right: 2px;
+                overflow: visible;
               `}
             >
-              <div
-                css={css`
-                  position: relative;
-                  width: ${FANOUT_WIDTH}px;
-                  flex: 0 0 ${FANOUT_WIDTH}px;
-                  align-self: stretch;
-                  margin-right: 2px;
-                  overflow: visible;
-                `}
-              >
-                <FanOutConnectors groupCount={riskGroups.length} edgeColor={edgeColor} />
-                <FanOutArrows groupCount={riskGroups.length} edgeColor={edgeColor} />
-              </div>
-              <EuiFlexGroup
-                direction="column"
-                gutterSize="none"
-                responsive={false}
-                css={css`
-                  flex: 1 1 auto;
-                  min-width: ${PREVIEW_CARD_MIN_WIDTH}px;
-                  gap: ${GROUP_STACK_GAP}px;
-                `}
-              >
-                {riskGroups.map((group, index) => {
-                  const isGroup = group.count > 1;
-                  const groupLabel =
-                    group.label ??
-                    i18n.translate(
-                      'xpack.securitySolution.flyout.right.visualizations.graphPreview.groupEntityCount',
-                      {
-                        defaultMessage:
-                          '{count} {count, plural, one {Entity} other {Entities}}',
-                        values: { count: group.count },
-                      }
-                    );
-                  return (
-                    <EuiFlexItem
-                      key={`${group.level}-${group.label ?? index}`}
-                      grow={false}
-                      css={{ minWidth: PREVIEW_CARD_MIN_WIDTH }}
-                    >
-                      <NodeCard
-                        isGroup={isGroup}
-                        count={isGroup ? group.count : undefined}
-                        icon={isGroup ? GROUP_ENTITIES_ICON : group.icon ?? 'storage'}
-                        label={groupLabel}
-                        riskScore={
-                          group.riskScoreMin === undefined ? group.riskScore : undefined
-                        }
-                        riskScoreMin={group.riskScoreMin}
-                        riskScoreMax={group.riskScoreMax}
-                      />
-                    </EuiFlexItem>
-                  );
-                })}
-              </EuiFlexGroup>
+              <FanOutConnectors groupCount={riskGroups.length} edgeColor={edgeColor} />
+              <FanOutArrows groupCount={riskGroups.length} edgeColor={edgeColor} />
             </div>
-          )}
-        </div>
+            <EuiFlexGroup
+              direction="column"
+              gutterSize="none"
+              responsive={false}
+              css={css`
+                flex: 1 1 auto;
+                min-width: 0;
+                width: 100%;
+                gap: ${GROUP_STACK_GAP}px;
+              `}
+            >
+              {riskGroups.map((group, index) => {
+                const isGroup = group.count > 1;
+                const groupLabel =
+                  group.label ??
+                  i18n.translate(
+                    'xpack.securitySolution.flyout.right.visualizations.graphPreview.groupEntityCount',
+                    {
+                      defaultMessage:
+                        '{count} {count, plural, one {Entity} other {Entities}}',
+                      values: { count: group.count },
+                    }
+                  );
+                return (
+                  <EuiFlexItem
+                    key={`${group.level}-${group.label ?? index}`}
+                    grow={false}
+                    css={css`
+                      width: 100%;
+                      min-width: 0;
+                    `}
+                  >
+                    <NodeCard
+                      isGroup={isGroup}
+                      count={isGroup ? group.count : undefined}
+                      icon={resolvePreviewIcon(group.icon) ?? 'storage'}
+                      label={groupLabel}
+                      riskScore={
+                        group.riskScoreMin === undefined ? group.riskScore : undefined
+                      }
+                      riskScoreMin={group.riskScoreMin}
+                      riskScoreMax={group.riskScoreMax}
+                    />
+                  </EuiFlexItem>
+                );
+              })}
+            </EuiFlexGroup>
+          </div>
+        ) : (
+          <div />
+        )}
       </div>
     );
   }

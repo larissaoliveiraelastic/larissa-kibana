@@ -27,7 +27,7 @@ import {
   type EntityDetailsPath,
 } from '../../../../flyout/entity_details/shared/components/left_panel/left_panel_header';
 import { useEntityFromStore } from '../../../../flyout/entity_details/shared/hooks/use_entity_from_store';
-import { getRiskFromEntityRecord } from '../../../../flyout/entity_details/shared/entity_store_risk_utils';
+import { getOriginRiskScoreForGraphPreview, getRiskFromEntityRecord } from '../../../../flyout/entity_details/shared/entity_store_risk_utils';
 import {
   useEntityPanelTabs,
   TABLE_TAB_ID,
@@ -52,6 +52,13 @@ export interface ServiceProps {
   scopeId?: string;
   /** Stable identifier for the service panel context (defaults to `scopeId` or a static fallback). */
   contextID?: string;
+  /** When true, omit the nested Entity Graph preview (side panel already beside the full graph). */
+  hideGraphPreview?: boolean;
+  /**
+   * Compact preview for the Entity Graph side panel — header + summary grid + risk/criticality
+   * only (no nested flyout chrome, Overview/Table tabs, AI summary, or footer).
+   */
+  sidePanelPreview?: boolean;
 }
 
 const FIRST_RECORD_PAGINATION = {
@@ -71,6 +78,8 @@ export const Service: FC<ServiceProps> = memo(function Service({
   entityId,
   scopeId = '',
   contextID,
+  hideGraphPreview = false,
+  sidePanelPreview = false,
 }) {
   const { euiTheme } = useEuiTheme();
   const {
@@ -223,6 +232,9 @@ export const Service: FC<ServiceProps> = memo(function Service({
             entityId: entityStoreEntityId,
             scopeId,
             entityName: serviceName,
+            originRiskScore: getOriginRiskScoreForGraphPreview(
+              entityFromStoreResult.entityRecord
+            ),
             onShowEntity: onShowRelatedEntityFromGraph,
             onShowOriginatingEntity: onShowService,
             title: serviceName,
@@ -250,6 +262,7 @@ export const Service: FC<ServiceProps> = memo(function Service({
       serviceName,
       scopeId,
       entityStoreEntityId,
+      entityFromStoreResult.entityRecord,
       onShowService,
       onShowRelatedEntityFromGraph,
       onShowRelatedEntityFromResolution,
@@ -268,6 +281,58 @@ export const Service: FC<ServiceProps> = memo(function Service({
     />
   ) : undefined;
 
+  const riskLevel = entityFromStoreResult.entityRecord
+    ? ((getRiskFromEntityRecord(entityFromStoreResult.entityRecord)?.calculated_level ??
+        'Unknown') as RiskSeverity)
+    : undefined;
+
+  const overviewContent = (
+    <ServicePanelContent
+      entityRecord={entityFromStoreResult.entityRecord ?? undefined}
+      serviceName={serviceName}
+      observedService={observedService}
+      riskScoreState={riskScoreState}
+      entityRiskScores={entityRiskScores}
+      recalculatingScore={recalculatingScore}
+      onAssetCriticalityChange={onAssetCriticalityChanged}
+      contextID={safeContextID}
+      scopeId={scopeId}
+      openDetailsPanel={openDetailsPanel}
+      isPreviewMode={sidePanelPreview}
+      entityStoreEntityId={entityStoreEntityId}
+      onShowEntity={onShowRelatedEntityFromResolution}
+      riskScoreQueryId={SERVICE_PANEL_RISK_SCORE_QUERY_ID}
+      hideHeaderIcons
+      hideGraphPreview={hideGraphPreview || sidePanelPreview}
+      hideEntityHighlights={sidePanelPreview}
+      hideResolution={sidePanelPreview}
+      showAssetCriticalityAccordion={sidePanelPreview}
+    />
+  );
+
+  if (sidePanelPreview) {
+    return (
+      <div css={{ display: 'flex', flexDirection: 'column', minHeight: 0, height: '100%' }}>
+        <div css={{ flexShrink: 0, padding: '8px 16px 0' }}>
+          <ServicePanelHeader
+            serviceName={serviceName}
+            observedService={observedService}
+            isEntityInStore={false}
+            flyoutHeaderProps={{
+              css: css`
+                padding-block: ${euiTheme.size.s} !important;
+              `,
+              panelProps: { paddingSize: 'none' },
+            }}
+          />
+        </div>
+        <div css={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '16px 16px 16px' }}>
+          {overviewContent}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       <ServicePanelHeader
@@ -280,12 +345,7 @@ export const Service: FC<ServiceProps> = memo(function Service({
           `,
           panelProps: { paddingSize: 'none' },
         }}
-        riskLevel={
-          entityFromStoreResult.entityRecord
-            ? ((getRiskFromEntityRecord(entityFromStoreResult.entityRecord)?.calculated_level ??
-                'Unknown') as RiskSeverity)
-            : undefined
-        }
+        riskLevel={riskLevel}
       />
       <FlyoutBody panelProps={{ paddingSize: 'none' }}>
         {entityFromStoreResult.entityRecord && (
@@ -300,23 +360,7 @@ export const Service: FC<ServiceProps> = memo(function Service({
         {tabs && selectedTabId === TABLE_TAB_ID && entityFromStoreResult.entityRecord ? (
           <EntityStoreTableTab entityRecord={entityFromStoreResult.entityRecord} />
         ) : (
-          <ServicePanelContent
-            entityRecord={entityFromStoreResult.entityRecord ?? undefined}
-            serviceName={serviceName}
-            observedService={observedService}
-            riskScoreState={riskScoreState}
-            entityRiskScores={entityRiskScores}
-            recalculatingScore={recalculatingScore}
-            onAssetCriticalityChange={onAssetCriticalityChanged}
-            contextID={safeContextID}
-            scopeId={scopeId}
-            openDetailsPanel={openDetailsPanel}
-            isPreviewMode={false}
-            entityStoreEntityId={entityStoreEntityId}
-            onShowEntity={onShowRelatedEntityFromResolution}
-            riskScoreQueryId={SERVICE_PANEL_RISK_SCORE_QUERY_ID}
-            hideHeaderIcons
-          />
+          overviewContent
         )}
       </FlyoutBody>
       <ServicePanelFooter

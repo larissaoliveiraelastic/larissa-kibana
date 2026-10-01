@@ -9,33 +9,43 @@ import React, { memo, useMemo } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import styled from '@emotion/styled';
 import { css } from '@emotion/react';
-import { EuiTextTruncate, EuiToolTip, useEuiTheme } from '@elastic/eui';
+import { useEuiTheme } from '@elastic/eui';
 import { NODE_LABEL_WIDTH, getRelationshipColors } from '../styles';
-import { PillExpandButton, TEST_SUBJ_PILL_EXPAND_BTN } from '../pill_expand_button';
+import {
+  EventHoverActionsToolbar,
+  TEST_SUBJ_PILL_EXPAND_BTN,
+} from '../event_hover_actions_toolbar';
 import { useMultipleNodesSelected } from '../../../hooks/use_multiple_nodes_selected';
 import type { RelationshipNodeViewModel, NodeProps } from '../../types';
 import {
+  EVENT_GROUP_STACK_HEIGHT,
   EVENT_PILL_HEIGHT,
-  LABEL_PILL_TEXT_MAX_WIDTH,
+  EVENT_PILL_LABEL_FONT_SIZE,
+  EVENT_PILL_LABEL_LINE_HEIGHT,
+  EVENT_PILL_PADDING_LEFT,
+  EVENT_PILL_PADDING_X,
+  EVENT_PILL_PADDING_Y,
+  getEventPillBoxShadow,
   pillHandleStyle,
 } from '../label_node/event_pill_styles';
+import { RelationshipTypeBadge } from '../label_node/label_node_badges';
 import {
   GRAPH_RELATIONSHIP_NODE_ID,
   GRAPH_RELATIONSHIP_NODE_SHAPE_ID,
   GRAPH_RELATIONSHIP_NODE_HANDLE_ID,
-  GRAPH_RELATIONSHIP_NODE_TOOLTIP_ID,
   GRAPH_RELATIONSHIP_NODE_LABEL_TEXT_ID,
 } from '../../test_ids';
 import { GRAPH_NODE_SHADOW } from '../../constants';
-
-const MAX_LABEL_LENGTH = 27;
+import { showStackedShape } from '../../utils';
 
 export const TEST_SUBJ_RELATIONSHIP_EXPAND_BTN = TEST_SUBJ_PILL_EXPAND_BTN;
+export const TEST_SUBJ_RELATIONSHIP_GROUP_STACK = 'relationship-node-group-stack';
 
 /**
- * Fixed layout width matches Dagre/`NODE_LABEL_WIDTH` so pills of different
- * lengths share one center axis. A through-line bridges the handles so the
- * edge visually runs through the centered pill (Figma).
+ * Figma Event → Relationship (14980:17219):
+ * Single: [Action.name] [cluster icon badge]
+ * Group:  same + count on badge + stack layer
+ * Active: Strong/Primary border
  */
 const RelationshipNodeContainer = styled.div`
   position: relative;
@@ -45,14 +55,13 @@ const RelationshipNodeContainer = styled.div`
   justify-content: flex-start;
   box-sizing: border-box;
   width: ${NODE_LABEL_WIDTH}px;
-  max-width: ${NODE_LABEL_WIDTH}px;
+  min-width: ${NODE_LABEL_WIDTH}px;
 `;
 
 const EdgeThroughLine = styled.div<{ $color: string }>`
   position: absolute;
   left: 0;
   right: 0;
-  /* Center on the handle Y (pill mid) — not the top of a 1px box at mid. */
   top: ${EVENT_PILL_HEIGHT / 2}px;
   height: 1px;
   transform: translateY(-50%);
@@ -65,54 +74,84 @@ const PillShell = styled.div`
   position: relative;
   z-index: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 100%;
+  width: max-content;
+  max-width: none;
+`;
+
+/** Hug the pill width so the group stack matches the capsule, not the full corridor. */
+const PillColumn = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: max-content;
+  max-width: none;
+  margin: 0 auto;
 `;
 
 const RelationshipPill = styled.div<{
   backgroundColor: string;
-  borderColor: string;
-  activeBorderColor: string;
-  defaultShadow?: string;
-  hoverShadow?: string;
+  boxShadowCss: string;
+  hoverShadowCss: string;
 }>`
+  box-sizing: border-box;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: ${EVENT_PILL_HEIGHT}px;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
+  gap: 4px;
+  width: max-content;
+  max-width: none;
   height: ${EVENT_PILL_HEIGHT}px;
-  padding: 4px 12px;
+  min-height: ${EVENT_PILL_HEIGHT}px;
+  padding: ${EVENT_PILL_PADDING_Y}px ${EVENT_PILL_PADDING_X}px ${EVENT_PILL_PADDING_Y}px
+    ${EVENT_PILL_PADDING_LEFT}px;
+  border: none;
   border-radius: 999px;
-  border: 1px solid ${({ borderColor }) => borderColor};
   background: ${({ backgroundColor }) => backgroundColor};
-  max-width: 100%;
-  margin: 0 auto;
-  ${({ defaultShadow }) => defaultShadow ?? ''}
-  transition: box-shadow 0.2s ease, border-color 0.2s ease, border-width 0.2s ease;
+  white-space: nowrap;
+  ${({ boxShadowCss }) => boxShadowCss}
+  transition: box-shadow 0.2s ease;
 
   .react-flow__node:not(.non-interactive):hover:not(.dragging) & {
-    ${({ hoverShadow }) => hoverShadow ?? ''}
-  }
-
-  .react-flow__node:not(.non-interactive).selected:not(.dragging) &,
-  .react-flow__node:not(.non-interactive).dragging & {
-    border-color: ${({ activeBorderColor }) => activeBorderColor};
-    border-width: 2px;
+    ${({ hoverShadowCss }) => hoverShadowCss}
   }
 `;
 
+/** Figma “grouped” layer under the pill — inset, bottom-only edges. */
+const GroupStack = styled.div<{ $borderColor: string; $fillColor: string }>`
+  box-sizing: border-box;
+  height: ${EVENT_GROUP_STACK_HEIGHT}px;
+  margin: 0 16px;
+  pointer-events: none;
+  border-left: 1px solid ${({ $borderColor }) => $borderColor};
+  border-right: 1px solid ${({ $borderColor }) => $borderColor};
+  border-bottom: 1px solid ${({ $borderColor }) => $borderColor};
+  border-radius: 0 0 8px 8px;
+  background: ${({ $fillColor }) => $fillColor};
+  opacity: 0.5;
+`;
+
 export const RelationshipNode = memo<NodeProps>((props: NodeProps) => {
-  const { id } = props;
-  const { label, interactive, expandButtonClick } = props.data as RelationshipNodeViewModel;
+  const { id, selected, dragging } = props;
+  const {
+    label,
+    interactive,
+    expandButtonClick,
+    relatedEventsClickHandler,
+    relatedEventsActive,
+    count,
+  } = props.data as RelationshipNodeViewModel & { count?: number };
 
   const isMultipleNodesSelected = useMultipleNodesSelected();
   const showExpandButton = interactive && !isMultipleNodesSelected;
+  const isGroup = showStackedShape(count);
+  const isActive = Boolean(selected || dragging);
 
   const { euiTheme } = useEuiTheme();
-  // Figma Graph viz (13969:1176) — X-small Level 2 for relationship labels.
-  const defaultShadow = GRAPH_NODE_SHADOW;
-  const hoverShadow = GRAPH_NODE_SHADOW;
 
   const text = label ?? id;
 
@@ -120,66 +159,57 @@ export const RelationshipNode = memo<NodeProps>((props: NodeProps) => {
     () => getRelationshipColors(euiTheme),
     [euiTheme]
   );
-  const activeBorderColor = euiTheme.colors.primary;
+  const activeBorderColor = euiTheme.colors.borderStrongPrimary;
   const edgeThroughColor = euiTheme.colors.borderBaseProminent;
+  const pillBorderColor = isActive ? activeBorderColor : borderColor;
+  const pillBoxShadow = getEventPillBoxShadow(pillBorderColor, GRAPH_NODE_SHADOW);
 
   const labelTextCss = css`
-    min-width: 0;
     font-weight: ${euiTheme.font.weight.semiBold};
-    font-size: 10.5px;
-    line-height: 16px;
+    font-size: ${EVENT_PILL_LABEL_FONT_SIZE}px;
+    line-height: ${EVENT_PILL_LABEL_LINE_HEIGHT}px;
     color: ${textColor};
     text-align: center;
+    white-space: nowrap;
   `;
 
-  const renderLabelText = () => {
-    if (text.length <= MAX_LABEL_LENGTH) {
-      return (
-        <span css={labelTextCss} data-test-subj={GRAPH_RELATIONSHIP_NODE_LABEL_TEXT_ID}>
-          {text}
-        </span>
-      );
-    }
-
-    const truncatedLabel = (
-      <EuiTextTruncate
-        data-test-subj={GRAPH_RELATIONSHIP_NODE_LABEL_TEXT_ID}
-        truncation="middle"
-        text={text}
-        width={LABEL_PILL_TEXT_MAX_WIDTH}
-        css={labelTextCss}
-      />
-    );
-
-    return (
-      <EuiToolTip
-        content={text}
-        display="inline"
-        data-test-subj={GRAPH_RELATIONSHIP_NODE_TOOLTIP_ID}
-      >
-        {truncatedLabel}
-      </EuiToolTip>
-    );
-  };
+  const renderLabelText = () => (
+    <span css={labelTextCss} data-test-subj={GRAPH_RELATIONSHIP_NODE_LABEL_TEXT_ID}>
+      {text}
+    </span>
+  );
 
   return (
     <RelationshipNodeContainer data-test-subj={GRAPH_RELATIONSHIP_NODE_ID}>
       <EdgeThroughLine $color={edgeThroughColor} aria-hidden={true} />
       <PillShell>
-        <RelationshipPill
-          data-test-subj={GRAPH_RELATIONSHIP_NODE_SHAPE_ID}
-          backgroundColor={backgroundColor}
-          borderColor={borderColor}
-          activeBorderColor={activeBorderColor}
-          defaultShadow={defaultShadow}
-          hoverShadow={hoverShadow}
-        >
-          {renderLabelText()}
-        </RelationshipPill>
+        <PillColumn>
+          <RelationshipPill
+            data-test-subj={GRAPH_RELATIONSHIP_NODE_SHAPE_ID}
+            backgroundColor={backgroundColor}
+            boxShadowCss={pillBoxShadow}
+            hoverShadowCss={pillBoxShadow}
+          >
+            {renderLabelText()}
+            <RelationshipTypeBadge count={isGroup ? count : undefined} />
+          </RelationshipPill>
+          {isGroup && (
+            <GroupStack
+              data-test-subj={TEST_SUBJ_RELATIONSHIP_GROUP_STACK}
+              $borderColor={euiTheme.colors.borderBasePrimary}
+              $fillColor={euiTheme.colors.backgroundLightPrimary}
+              aria-hidden={true}
+            />
+          )}
+        </PillColumn>
 
         {interactive && showExpandButton && (
-          <PillExpandButton
-            onClick={(e, unToggleCallback) => expandButtonClick?.(e, props, unToggleCallback)}
+          <EventHoverActionsToolbar
+            onRelatedEventsClick={relatedEventsClickHandler}
+            relatedEventsActive={relatedEventsActive}
+            onExpandClick={(e, unToggleCallback) =>
+              expandButtonClick?.(e, props, unToggleCallback)
+            }
           />
         )}
       </PillShell>

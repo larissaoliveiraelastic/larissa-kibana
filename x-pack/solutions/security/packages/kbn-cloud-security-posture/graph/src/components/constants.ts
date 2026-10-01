@@ -23,6 +23,21 @@ export const GRID_SIZE = 10;
  */
 export const GRAPH_BACKGROUND_COLOR = '#F7F8FC';
 
+/** Entity card / preview node corner radius (Figma). */
+export const GRAPH_NODE_BORDER_RADIUS = 12;
+
+/** Hover action icon hit-target radius (Figma Action Menu). */
+export const GRAPH_ACTION_BUTTON_BORDER_RADIUS = 8;
+
+/** Tooltip corner radius for all graph hover chrome. */
+export const GRAPH_TOOLTIP_BORDER_RADIUS = 12;
+
+/**
+ * Tooltip label ink — Figma Text/Paragraph in dark color mode (`#CAD3E2`).
+ * EUI defaults to `textGhost` (pure white); Graph mocks use the softer paragraph token.
+ */
+export const GRAPH_TOOLTIP_TEXT_COLOR = '#CAD3E2';
+
 /**
  * Dot pattern color for the graph canvas background.
  * Slightly stronger than the Figma export anti-alias color so dots remain
@@ -36,9 +51,11 @@ export const GRAPH_BACKGROUND_DOT_COLOR = '#C5CCD6';
 export const GRAPH_BACKGROUND_DOT_GAP = 24;
 
 /**
- * Distance from the graph canvas edge to floating panels (search, controls, minimap).
+ * Distance from the graph canvas edge to floating chrome (zoom, bottom bar,
+ * minimap, actions, Display / Search / Keyboard shortcuts panels).
+ * Matches the entity preview / sidebar gutter (16px).
  */
-export const GRAPH_PANEL_INSET = 4;
+export const GRAPH_PANEL_INSET = 16;
 
 /**
  * Figma Graph viz Component Library — Source Panel / entity card shadow

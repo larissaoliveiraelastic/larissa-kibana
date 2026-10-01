@@ -9,6 +9,7 @@ import React from 'react';
 import { Global, css } from '@emotion/react';
 import { GRAPH_NON_ORIGIN_NODE_OPACITY } from './graph_origin_utils';
 import { GRAPH_SEARCH_NON_MATCH_NODE_OPACITY } from './graph_search_utils';
+import { GRAPH_TOOLTIP_BORDER_RADIUS, GRAPH_TOOLTIP_TEXT_COLOR } from '../constants';
 
 export const GlobalGraphStyles = () => {
   return (
@@ -99,6 +100,12 @@ export const GlobalGraphStyles = () => {
         .react-flow.graph-entity-actions-hover .react-flow__edge {
           transition: opacity 0.15s ease;
           opacity: ${GRAPH_NON_ORIGIN_NODE_OPACITY};
+        }
+
+        /* Graph tooltips — Figma 12px radius + Text/Paragraph (dark), not Ghost white. */
+        .euiToolTip {
+          border-radius: ${GRAPH_TOOLTIP_BORDER_RADIUS}px !important;
+          color: ${GRAPH_TOOLTIP_TEXT_COLOR} !important;
         }
       `}
     />

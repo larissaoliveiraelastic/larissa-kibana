@@ -205,7 +205,9 @@ export const getLabelColors = (
 };
 
 /**
- * Relationship pill colors per Figma event component (Relationship variant).
+ * Relationship pill colors — same shell as events/alerts:
+ * Light/Primary fill + Borders/Base/Primary. Cluster badge stays Base/Plain (white).
+ * @see https://www.figma.com/design/NKGsPiGKZ4rEwRVBnuctZ2/-9.5--Graph-viz---Component-Library?node-id=14980-17219
  */
 export const getRelationshipColors = (
   euiTheme: EuiThemeComputed
@@ -216,9 +218,9 @@ export const getRelationshipColors = (
   textColor: string;
 } => {
   return {
-    backgroundColor: euiTheme.colors.backgroundLightText,
+    backgroundColor: euiTheme.colors.backgroundLightPrimary,
     emphasizedBackgroundColor: euiTheme.colors.backgroundBaseFormsControlDisabled,
-    borderColor: euiTheme.colors.borderBasePlain,
+    borderColor: euiTheme.colors.borderBasePrimary,
     textColor: euiTheme.colors.textParagraph,
   };
 };

@@ -31,6 +31,8 @@ const MinimapExpandIcon = () => <EuiIcon type={minimapMapIcon} size="m" color="t
 /** Expanded minimap content size from Figma (node 13994:673). */
 const MINIMAP_CONTENT_WIDTH = 151;
 const MINIMAP_CONTENT_HEIGHT = 96;
+/** Collapsed chrome matches zoom / bottom-bar control height (48px). */
+const MINIMAP_COLLAPSED_SIZE = 48;
 
 /**
  * Padding around graph bounds in the MiniMap viewBox.
@@ -234,13 +236,35 @@ export const Minimap = ({
     border: ${euiTheme.border.thin};
     border-color: ${euiTheme.colors.borderBaseSubdued};
     border-radius: ${euiTheme.border.radius.small};
+    box-sizing: border-box;
+
+    ${
+      !isExpanded
+        ? `
+      width: ${MINIMAP_COLLAPSED_SIZE}px;
+      height: ${MINIMAP_COLLAPSED_SIZE}px;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    `
+        : ''
+    }
   `;
 
   const headerCss = css`
     display: flex;
-    justify-content: flex-end;
+    justify-content: ${isExpanded ? 'flex-end' : 'center'};
     align-items: center;
     background-color: ${euiTheme.colors.backgroundBasePlain};
+    ${
+      !isExpanded
+        ? `
+      width: 100%;
+      height: 100%;
+      justify-content: center;
+    `
+        : ''
+    }
   `;
 
   const contentCss = css`

@@ -9,6 +9,7 @@ import React from 'react';
 import { EuiHorizontalRule } from '@elastic/eui';
 import { useIsExperimentalFeatureEnabled } from '../../../../common/hooks/use_experimental_features';
 import type { Entity } from '../../../../../common/api/entity_analytics';
+import type { CriticalityLevelWithUnassigned } from '../../../../../common/entity_analytics/asset_criticality/types';
 import { useAnomalyOverview } from '../../../../entity_analytics/api/hooks/use_anomaly_overview';
 import { useAnomalyPrivileges } from '../../../../entity_analytics/api/hooks/use_anomaly_privileges';
 import { ObservedDataSection } from '../../shared/components/observed_data_section';
@@ -78,6 +79,23 @@ export interface ContentProps {
   enableGraphAndResolutionNavigation?: boolean;
   /** When true, hides the chevron icons in the risk summary and alerts section headers. Used by the v2 flyout. */
   hideHeaderIcons?: boolean;
+  /** When true, omit the nested Entity Graph preview (e.g. side panel already beside the full graph). */
+  hideGraphPreview?: boolean;
+  /** When true, omit AI entity summary (highlights). */
+  hideEntityHighlights?: boolean;
+  /** When true, omit behavioral anomalies section. */
+  hideAnomalies?: boolean;
+  /** When true, omit EntityInsight section. */
+  hideEntityInsights?: boolean;
+  /**
+   * When true, always render {@link AssetCriticalityAccordion} (preview layout),
+   * even when an entity-store record is present.
+   */
+  showAssetCriticalityAccordion?: boolean;
+  /** Entity-store criticality level for {@link AssetCriticalityAccordion}. */
+  criticalityFromEntityStore?: CriticalityLevelWithUnassigned | null;
+  /** Entity-store save handler for {@link AssetCriticalityAccordion}. */
+  onSaveViaEntityStore?: (updatedRecord: Entity) => Promise<void>;
   /**
    * When provided, clicking a related entity in the resolution section is delegated to this callback
    * (used by the new EUI system flyout) instead of the legacy expandable flyout.
@@ -115,6 +133,13 @@ export const Content = ({
   prefetchedResolutionRisk,
   enableGraphAndResolutionNavigation = true,
   hideHeaderIcons = false,
+  hideGraphPreview = false,
+  hideEntityHighlights = false,
+  hideAnomalies = false,
+  hideEntityInsights = false,
+  showAssetCriticalityAccordion = false,
+  criticalityFromEntityStore,
+  onSaveViaEntityStore,
   onShowEntity,
   riskScoreQueryId,
 }: ContentProps) => {
@@ -122,7 +147,8 @@ export const Content = ({
   const isAnomalyDetailsEnabled = useIsExperimentalFeatureEnabled('entityAnalyticsAnomalyDetails');
   const { data: anomalyPrivilegesData } = useAnomalyPrivileges(isAnomalyDetailsEnabled);
   const hasAnomalyPrivileges = anomalyPrivilegesData?.has_all_required ?? false;
-  const loadAnomalies = isAnomalyDetailsEnabled && hasAnomalyPrivileges && !!entityStoreEntityId;
+  const loadAnomalies =
+    !hideAnomalies && isAnomalyDetailsEnabled && hasAnomalyPrivileges && !!entityStoreEntityId;
 
   const anomalyOverview = useAnomalyOverview({
     entityId: entityStoreEntityId ?? '',
@@ -135,7 +161,7 @@ export const Content = ({
 
   return (
     <>
-      {!skipRiskAndCriticality && (
+      {!skipRiskAndCriticality && !hideEntityHighlights && (
         <EntityHighlightsAccordion
           entityIdentifier={entityRecord?.entity?.id ?? userName}
           entityType={EntityType.user}
@@ -176,7 +202,7 @@ export const Content = ({
             />
           </>
         )}
-      {entityStoreEntityId && (
+      {entityStoreEntityId && !hideGraphPreview && (
         <>
           <VisualizationsSection
             entityId={entityStoreEntityId}
@@ -201,21 +227,30 @@ export const Content = ({
           <EuiHorizontalRule />
         </>
       )}
-      {!skipRiskAndCriticality && !entityRecord && (
+      {!skipRiskAndCriticality && (!entityRecord || showAssetCriticalityAccordion) && (
         <AssetCriticalityAccordion
           entity={{ name: userName, type: EntityType.user }}
           onChange={onAssetCriticalityChange}
+          entityRecord={showAssetCriticalityAccordion ? entityRecord : undefined}
+          criticalityFromEntityStore={
+            showAssetCriticalityAccordion ? criticalityFromEntityStore : undefined
+          }
+          onSaveViaEntityStore={
+            showAssetCriticalityAccordion ? onSaveViaEntityStore : undefined
+          }
         />
       )}
-      <EntityInsight
-        entityRecord={entityRecord}
-        identityFields={identityFields}
-        isPreviewMode={isPreviewMode}
-        openDetailsPanel={openDetailsPanel}
-        entityType={EntityType.user}
-        hideHeaderIcons={hideHeaderIcons}
-        scopeId={scopeId}
-      />
+      {!hideEntityInsights && (
+        <EntityInsight
+          entityRecord={entityRecord}
+          identityFields={identityFields}
+          isPreviewMode={isPreviewMode}
+          openDetailsPanel={openDetailsPanel}
+          entityType={EntityType.user}
+          hideHeaderIcons={hideHeaderIcons}
+          scopeId={scopeId}
+        />
+      )}
       <ObservedDataSection
         entityType={EntityType.user}
         observedData={observedUser}

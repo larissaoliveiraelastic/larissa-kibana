@@ -166,6 +166,11 @@ export const entityNodeDataSchema = schema.allOf([
     ]),
     tag: schema.maybe(schema.string()),
     count: schema.maybe(schema.number()),
+    /**
+     * Entity subtype for the card metadata body (e.g. "EC2", "Macbook").
+     * Shown only when Node metadata → Sub-type is enabled — never a fixed body row.
+     */
+    subType: schema.maybe(schema.string()),
     ips: schema.maybe(schema.arrayOf(schema.string())),
     countryCodes: schema.maybe(schema.arrayOf(schema.string())),
     /** Entity data sources (e.g. Active Directory) — group cards show first + overflow. */
@@ -214,6 +219,8 @@ export const relationshipNodeDataSchema = schema.allOf([
   schema.object({
     shape: schema.literal('relationship'),
     parentId: schema.maybe(schema.string()),
+    /** When > 1, render as Group (stack + count on type badge). */
+    count: schema.maybe(schema.number()),
   }),
 ]);
 

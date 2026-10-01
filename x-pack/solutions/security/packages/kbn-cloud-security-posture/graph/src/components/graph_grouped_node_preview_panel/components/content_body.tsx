@@ -16,7 +16,7 @@ import { ListHeader } from './list_header';
 import { GroupedItem } from './grouped_item/grouped_item';
 import type { EntityOrEventItem } from './grouped_item/types';
 import { PaginationControls } from './pagination_controls';
-import { DEFAULT_PAGE_SIZE, type Pagination } from '../use_pagination';
+import type { Pagination } from '../use_pagination';
 
 const maxDocumentsShownLabel = i18n.translate(`${i18nNamespaceKey}.maxDocumentsShownLabel`, {
   defaultMessage: '(Maximum 50 document details shown)',
@@ -40,6 +40,8 @@ export interface ContentBodyProps {
     entityId: string;
     entityName: string | undefined;
   }) => void;
+  /** When true, omit the count title (parent chrome already shows it). */
+  hidePanelTitle?: boolean;
 }
 
 export const ContentBody: FC<ContentBodyProps> = ({
@@ -51,14 +53,13 @@ export const ContentBody: FC<ContentBodyProps> = ({
   scopeId,
   onShowDocument,
   onShowEntity,
+  hidePanelTitle = false,
 }) => {
-  // Show pagination only when there are more items than fit on a single page with default size
-  const shouldShowPagination = totalHits > DEFAULT_PAGE_SIZE;
   return (
     <PanelBody data-test-subj={CONTENT_BODY_TEST_ID}>
-      <Title icon={icon} text={groupedItemsType} count={totalHits} />
+      {!hidePanelTitle && <Title icon={icon} text={groupedItemsType} count={totalHits} />}
       <ListHeader groupedItemsType={groupedItemsType} />
-      <EuiText size="s">{maxDocumentsShownLabel}</EuiText>
+      {!hidePanelTitle && <EuiText size="s">{maxDocumentsShownLabel}</EuiText>}
       <List>
         {items.map((item, index) => (
           // `entity.id` is not guaranteed to be unique within a group (ideally the
@@ -76,14 +77,12 @@ export const ContentBody: FC<ContentBodyProps> = ({
           </li>
         ))}
       </List>
-      {shouldShowPagination && (
-        <PaginationControls
-          totalHits={totalHits}
-          pagination={pagination.state}
-          goToPage={pagination.goToPage}
-          setPageSize={pagination.setPageSize}
-        />
-      )}
+      <PaginationControls
+        totalHits={totalHits}
+        pagination={pagination.state}
+        goToPage={pagination.goToPage}
+        setPageSize={pagination.setPageSize}
+      />
     </PanelBody>
   );
 };

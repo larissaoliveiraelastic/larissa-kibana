@@ -43,6 +43,7 @@ jest.mock('../shared/components/flyout_provider', () => ({
 jest.mock('../shared/hooks/use_default_flyout_properties', () => ({
   useDefaultDocumentFlyoutProperties: jest.fn(() => ({ size: 's' })),
   defaultToolsFlyoutProperties: { size: 'm' },
+  entityGraphToolsFlyoutProperties: { size: 1040, minWidth: 720, maxWidth: 1400 },
 }));
 
 const mockWriteOnOpen = jest.fn();
@@ -364,7 +365,7 @@ describe('useEntityFlyoutApi', () => {
 
     expect(mockOpenSystemFlyout).toHaveBeenCalledWith(
       'FLYOUT_CONTENT',
-      expect.objectContaining({ size: 'm', session: 'start' })
+      expect.objectContaining({ size: 1040, minWidth: 720, session: 'start' })
     );
   });
 

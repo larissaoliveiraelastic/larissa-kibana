@@ -229,31 +229,9 @@ describe('LabelNode', () => {
     expect(screen.queryByTestId(TEST_SUBJ_GEO_ROW)).toBeInTheDocument();
   });
 
-  describe('Tooltip', () => {
-    test('shows tooltip when text is truncated', async () => {
-      const props = {
-        ...baseProps,
-        data: {
-          ...baseProps.data,
-          label: 'This label is too long so it will be truncated for sure oh yeah',
-        },
-      };
-
-      render(
-        <ReactFlow>
-          <LabelNode {...props} />
-        </ReactFlow>
-      );
-
-      await userEvent.hover(screen.getByTestId(TEST_SUBJ_LABEL_TEXT));
-
-      await waitFor(() => {
-        expect(screen.queryByTestId(TEST_SUBJ_TOOLTIP)).toBeInTheDocument();
-      });
-    });
-
-    test('tooltip shows full text content', async () => {
-      const longText = 'This is a very long label that exceeds twenty-seven characters';
+  describe('Label text', () => {
+    test('shows full label text without truncation', () => {
+      const longText = 'This label is too long so it will be truncated for sure oh yeah';
       const props = {
         ...baseProps,
         data: {
@@ -261,32 +239,15 @@ describe('LabelNode', () => {
           label: longText,
         },
       };
+
       render(
         <ReactFlow>
           <LabelNode {...props} />
         </ReactFlow>
       );
 
-      await userEvent.hover(screen.getByTestId(TEST_SUBJ_LABEL_TEXT));
-
-      await waitFor(() => {
-        expect(screen.queryByTestId(TEST_SUBJ_TOOLTIP)).toBeInTheDocument();
-        expect(screen.queryByTestId(TEST_SUBJ_TOOLTIP)).toHaveTextContent(longText);
-      });
-    });
-
-    test('does not show tooltip otherwise', async () => {
-      render(
-        <ReactFlow>
-          <LabelNode {...baseProps} />
-        </ReactFlow>
-      );
-
-      await userEvent.hover(screen.getByTestId(TEST_SUBJ_LABEL_TEXT));
-
-      await waitFor(() => {
-        expect(screen.queryByTestId(TEST_SUBJ_TOOLTIP)).not.toBeInTheDocument();
-      });
+      expect(screen.getByTestId(TEST_SUBJ_LABEL_TEXT)).toHaveTextContent(longText);
+      expect(screen.queryByTestId(TEST_SUBJ_TOOLTIP)).not.toBeInTheDocument();
     });
   });
 
@@ -295,6 +256,8 @@ describe('LabelNode', () => {
       colors: {
         backgroundBaseDanger: '#fff3f1',
         backgroundLightDanger: '#fdddd8',
+        backgroundLightText: '#e3e8f2',
+        backgroundLightPrimary: '#e6f0ff',
         borderBaseDanger: '#ffc9c2',
         borderStrongDanger: '#c61e25',
         backgroundBasePlain: '#ffffff',
@@ -303,37 +266,38 @@ describe('LabelNode', () => {
         borderBasePlain: '#cad3e2',
         borderBaseProminent: '#98a2b3',
         borderBasePrimary: '#0b64dd',
+        borderStrongPrimary: '#0b64dd',
         primary: '#0b64dd',
         textParagraph: '#1d2a3e',
       },
     } as EuiThemeComputed;
 
-    it('returns alert colors for alert-only nodes', () => {
+    it('returns light-primary pill colors for alert-only nodes (badge stays white)', () => {
       const analysis = analyzeDocuments({ uniqueEventsCount: 0, uniqueAlertsCount: 2 });
       const colors = getEventPillColors(getEventPillTone(analysis), false, mockEuiTheme);
-      expect(colors.backgroundColor).toBe(mockEuiTheme.colors.backgroundBaseDanger);
-      expect(colors.borderColor).toBe(mockEuiTheme.colors.borderBaseDanger);
+      expect(colors.backgroundColor).toBe(mockEuiTheme.colors.backgroundLightPrimary);
+      expect(colors.borderColor).toBe(mockEuiTheme.colors.borderBasePrimary);
     });
 
-    it('returns active alert colors when selected', () => {
+    it('returns primary border when alert node is active', () => {
       const analysis = analyzeDocuments({ uniqueEventsCount: 0, uniqueAlertsCount: 2 });
       const colors = getEventPillColors(getEventPillTone(analysis), true, mockEuiTheme);
-      expect(colors.backgroundColor).toBe(mockEuiTheme.colors.backgroundLightDanger);
-      expect(colors.borderColor).toBe(mockEuiTheme.colors.borderStrongDanger);
+      expect(colors.backgroundColor).toBe(mockEuiTheme.colors.backgroundLightPrimary);
+      expect(colors.borderColor).toBe(mockEuiTheme.colors.borderStrongPrimary);
     });
 
-    it('returns event colors for event-only nodes', () => {
+    it('returns light-primary colors for event-only nodes', () => {
       const analysis = analyzeDocuments({ uniqueEventsCount: 2, uniqueAlertsCount: 0 });
       const colors = getEventPillColors(getEventPillTone(analysis), false, mockEuiTheme);
-      expect(colors.backgroundColor).toBe(mockEuiTheme.colors.backgroundBasePlain);
-      expect(colors.borderColor).toBe(mockEuiTheme.colors.borderBasePlain);
+      expect(colors.backgroundColor).toBe(mockEuiTheme.colors.backgroundLightPrimary);
+      expect(colors.borderColor).toBe(mockEuiTheme.colors.borderBasePrimary);
     });
 
-    it('returns active event colors when selected', () => {
+    it('returns strong primary border when event node is active', () => {
       const analysis = analyzeDocuments({ uniqueEventsCount: 2, uniqueAlertsCount: 0 });
       const colors = getEventPillColors(getEventPillTone(analysis), true, mockEuiTheme);
-      expect(colors.backgroundColor).toBe(mockEuiTheme.colors.backgroundBaseSubdued);
-      expect(colors.borderColor).toBe(mockEuiTheme.colors.borderBasePlain);
+      expect(colors.backgroundColor).toBe(mockEuiTheme.colors.backgroundLightPrimary);
+      expect(colors.borderColor).toBe(mockEuiTheme.colors.borderStrongPrimary);
     });
   });
 });

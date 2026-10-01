@@ -13,7 +13,6 @@ import {
   EuiHealth,
   EuiIcon,
   EuiText,
-  EuiTextTruncate,
   EuiToolTip,
   useEuiTheme,
 } from '@elastic/eui';
@@ -35,7 +34,7 @@ import { getSpanIcon } from './get_span_icon';
 import { getCountryFlag, getCountryName } from './country_flags/country_codes';
 import { showStackedShape } from '../utils';
 import { useMultipleNodesSelected } from '../../hooks/use_multiple_nodes_selected';
-import { GRAPH_NODE_SHADOW } from '../constants';
+import { GRAPH_NODE_BORDER_RADIUS, GRAPH_NODE_SHADOW } from '../constants';
 import {
   EntityHoverActionsToolbar,
   GRAPH_ENTITY_HOVER_ACTIONS_TOOLBAR_ID,
@@ -52,15 +51,15 @@ import {
 /** Card width per Figma entity component; tightened for compact header-only cards. */
 export const CARD_NODE_WIDTH = 220;
 
-/** Minimum / maximum shared entity card width when sizing from the longest label. */
+/** Minimum shared entity card width when sizing from the longest label. */
 const ENTITY_CARD_WIDTH_MIN = 200;
-const ENTITY_CARD_WIDTH_MAX = 320;
 
 /**
  * Header chrome for variant 2D (padding + icon + gaps + risk badge).
  * Label width is added on top when sizing from the longest entity name.
  * Actions live in the hover toolbar above the card — not reserved in the width.
- * Reserves count pill + dual-badge room so group titles like "Macbook Entities" never ellipsize.
+ * Reserves count pill + dual-badge room so group titles like "GCP Compute Instance"
+ * show in full without truncation.
  */
 const ENTITY_CARD_HEADER_CHROME_WIDTH =
   12 + // pad left
@@ -69,15 +68,15 @@ const ENTITY_CARD_HEADER_CHROME_WIDTH =
   28 + // group count pill
   6 + // gap count → title
   8 + // gap text → badge
-  130 + // risk range (~"90.01 - 50.00")
+  130 + // risk range (~"50.00 - 90.01")
   12; // pad right
 
-/** Approximate Inter bold 12px advance width for entity titles. */
-const estimateLabelWidthPx = (label: string): number => Math.ceil(label.length * 7.2);
+/** Approximate Inter bold 12px advance width for entity titles (+ buffer). */
+const estimateLabelWidthPx = (label: string): number => Math.ceil(label.length * 7.2) + 8;
 
 /**
- * Shared fixed width for all entity cards in a graph, based on the longest label.
- * Keeps cards aligned and avoids leftover space from a one-size 300px default.
+ * Shared / per-node entity card width from label length (layout + hit target).
+ * Cards hug content in the DOM (`max-content`); this estimate feeds dagre.
  */
 export const getEntityCardWidthForLabels = (labels: Array<string | undefined>): number => {
   const maxLabelWidth = labels.reduce((max, label) => {
@@ -85,7 +84,7 @@ export const getEntityCardWidthForLabels = (labels: Array<string | undefined>): 
     return Math.max(max, estimateLabelWidthPx(label));
   }, 0);
   const width = ENTITY_CARD_HEADER_CHROME_WIDTH + maxLabelWidth;
-  return Math.min(ENTITY_CARD_WIDTH_MAX, Math.max(ENTITY_CARD_WIDTH_MIN, width));
+  return Math.max(ENTITY_CARD_WIDTH_MIN, width);
 };
 
 /** Max layout height for an entity card with all metadata sections visible. */
@@ -119,8 +118,9 @@ const HOVER_ACTIONS_CLOSE_DELAY_MS = 120;
 /** Exit motion duration — keep in sync with toolbar fade-out. */
 const HOVER_ACTIONS_EXIT_MS = 140;
 
-/** Card / icon radius — match Figma entity card examples (~8px card, ~6px icon). */
-const CARD_BORDER_RADIUS = 8;
+/** Card border radius — Figma entity cards (8px). */
+const CARD_BORDER_RADIUS = GRAPH_NODE_BORDER_RADIUS;
+/** Icon box radius inside the card header. */
 const ICON_BORDER_RADIUS = 6;
 /** Risk score badge — EuiBadge / Figma pill (fully rounded). */
 const RISK_BADGE_BORDER_RADIUS = 999;
@@ -142,8 +142,6 @@ const SIMPLIFIED_GROUP_COUNT_BADGE_SIZE = 20;
 const GROUP_COUNT_BADGE_SIZE = 20;
 const GROUP_COUNT_BADGE_FONT_SIZE = 12;
 const SIMPLIFIED_LABEL_GAP = 4;
-const SIMPLIFIED_LABEL_MAX_WIDTH = CARD_NODE_WIDTH;
-const SIMPLIFIED_LABEL_TRUNCATE_LENGTH = 27;
 /** Minimum layout footprint for simplified cards (icon + caption). */
 export const SIMPLIFIED_CARD_LAYOUT_HEIGHT =
   SIMPLIFIED_ICON_SIZE + SIMPLIFIED_LABEL_GAP + CARD_METADATA_LINE_HEIGHT;
@@ -212,7 +210,6 @@ const SimplifiedCardContainer = styled.div`
   width: max-content;
   min-width: ${SIMPLIFIED_ICON_SIZE}px;
   min-height: ${SIMPLIFIED_CARD_LAYOUT_HEIGHT}px;
-  max-width: ${SIMPLIFIED_LABEL_MAX_WIDTH}px;
   overflow: visible;
 `;
 
@@ -330,28 +327,27 @@ const EntityGroupCountBadge = ({
 };
 
 const HeaderText = styled.div`
-  flex: 1;
-  min-width: 0;
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
   /* Figma Spaces/XXS between title and entity type */
   gap: 2px;
 `;
 
+/** Name (+ group count) and risk badges — packed with 8px between name and score. */
+const HeaderContent = styled.div`
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  min-width: min-content;
+`;
+
 const HeaderTitleRow = styled.div`
   display: flex;
   align-items: center;
   gap: 6px;
-  min-width: 0;
-`;
-
-/** Hosts + risk range — bottom row of the group header (risk bottom-aligned). */
-const HeaderSecondaryRow = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-width: 0;
+  min-width: min-content;
 `;
 
 const RiskBadgesRow = styled.div`
@@ -478,12 +474,12 @@ const resolveIcon = (icon?: string, tag?: string) => {
 };
 
 /**
- * Stacked-cards glyph for group entity cards — resolved via {@link getSpanIcon}
- * → `group_entities.svg` (stroke + bottom peek layer per Figma).
+ * Stacked-cards glyph — retained for minimap / legacy callers.
+ * Group entity *cards* use the real subtype icon (`icon` / `tag`), not this glyph.
  */
 export const GROUP_ENTITY_ICON = 'group_entities';
 
-/** Icon for group entity cards — always the stacked-cards glyph. */
+/** @deprecated Prefer the node's subtype `icon`; kept for export compatibility. */
 export const GROUP_CARD_ICON = GROUP_ENTITY_ICON;
 
 /**
@@ -496,12 +492,12 @@ export const getGroupEntitiesLabel = (count: number): string =>
     values: { count },
   });
 
-/** Figma card subtitle — plural type labels ("Hosts", "Users", …). */
+/** Entity card type subtitle — keep Host singular; other types stay plural. */
 const formatEntityTypeSubtitle = (typeLabel?: string): string | undefined => {
   if (!typeLabel) return undefined;
   const normalized = typeLabel.trim();
   const pluralBySingular: Record<string, string> = {
-    Host: 'Hosts',
+    Host: 'Host',
     User: 'Users',
     Service: 'Services',
     Entity: 'Entities',
@@ -673,13 +669,6 @@ const OverflowBadge = ({ count }: { count: number }) => {
 
 const CRITICALITY_LEVEL_ORDER = ['extreme', 'high', 'medium', 'low'] as const;
 
-const CRITICALITY_IMPACT_LABEL: Record<(typeof CRITICALITY_LEVEL_ORDER)[number], string> = {
-  extreme: 'Extreme impact',
-  high: 'High impact',
-  medium: 'Medium impact',
-  low: 'Low impact',
-};
-
 const CriticalityCountsGrid = ({
   counts,
 }: {
@@ -702,69 +691,6 @@ const CriticalityCountsGrid = ({
     })}
   </CriticalityGrid>
 );
-
-/** Group cards: highest → lowest impact present in the aggregated counts. */
-const CriticalityRange = ({
-  counts,
-}: {
-  counts: NonNullable<EntityNodeViewModel['assetCriticalityCounts']>;
-}) => {
-  const present = CRITICALITY_LEVEL_ORDER.filter((level) => (counts[level] ?? 0) > 0);
-  if (present.length === 0) return null;
-
-  const highest = present[0];
-  const lowest = present[present.length - 1];
-
-  if (highest === lowest) {
-    return (
-      <EuiHealth
-        color={CRITICALITY_HEALTH_COLOR[highest]}
-        textSize="inherit"
-        css={metadataTextCss}
-      >
-        {CRITICALITY_IMPACT_LABEL[highest]}
-      </EuiHealth>
-    );
-  }
-
-  return (
-    <div
-      css={css`
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        flex-wrap: wrap;
-      `}
-    >
-      <EuiHealth
-        color={CRITICALITY_HEALTH_COLOR[highest]}
-        textSize="inherit"
-        css={metadataTextCss}
-      >
-        {CRITICALITY_IMPACT_LABEL[highest]}
-      </EuiHealth>
-      <EuiText css={metadataTextCss}>{'-'}</EuiText>
-      <EuiHealth
-        color={CRITICALITY_HEALTH_COLOR[lowest]}
-        textSize="inherit"
-        css={metadataTextCss}
-      >
-        {CRITICALITY_IMPACT_LABEL[lowest]}
-      </EuiHealth>
-    </div>
-  );
-};
-
-/** Derive a short subtype label from a group title (e.g. "Macbook Entities" → "Macbook"). */
-const getGroupSubTypeLabel = (groupLabel?: string): string | undefined => {
-  if (!groupLabel) return undefined;
-  const trimmed = groupLabel.trim();
-  const withoutSuffix = trimmed.replace(
-    /\s+(entities|instances|buckets|hosts|users|services)$/i,
-    ''
-  );
-  return withoutSuffix || trimmed;
-};
 
 interface CardActionsButtonProps {
   onClick?: (e: React.MouseEvent<HTMLElement>, unToggleCallback: () => void) => void;
@@ -881,36 +807,16 @@ const RiskScoreBadge = ({ score }: { score: number }) => {
 };
 
 /**
- * Count badge beside the group title — Figma filled accent notification chip
- * (magenta/plum square, white numeral), not a light hollow pill.
+ * Group entity count — shared Figma Badge EuiBadge Hollow
+ * (@see https://www.figma.com/design/NKGsPiGKZ4rEwRVBnuctZ2/-9.5--Graph-viz---Component-Library?node-id=14964-16655).
  */
 const GroupCountPill = ({ count }: { count: number }) => {
-  const { euiTheme } = useEuiTheme();
   const label = count > 99 ? '99+' : String(count);
 
   return (
-    <GraphNotificationBadge
-      size="s"
-      css={css`
-        ${metadataTextCss}
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        flex-shrink: 0;
-        height: ${GROUP_COUNT_BADGE_SIZE}px;
-        min-width: ${GROUP_COUNT_BADGE_SIZE}px;
-        padding: 0 4px;
-        background-color: ${euiTheme.colors.backgroundFilledAccent};
-        color: ${euiTheme.colors.textInverse};
-        border: none;
-        border-radius: ${euiTheme.border.radius.small};
-        font-size: ${GROUP_COUNT_BADGE_FONT_SIZE}px;
-        font-weight: ${euiTheme.font.weight.medium};
-        line-height: ${GROUP_COUNT_BADGE_FONT_SIZE}px;
-      `}
-    >
+    <EuiBadge color="hollow" css={css`flex-shrink: 0;`}>
       {label}
-    </GraphNotificationBadge>
+    </EuiBadge>
   );
 };
 
@@ -947,32 +853,19 @@ interface SimplifiedCardProps {
 const SimplifiedCardLabel = ({ text, isGroup }: { text: string; isGroup: boolean }) => {
   const { euiTheme } = useEuiTheme();
 
-  const labelCss = css`
-    ${metadataTextCss}
-    font-weight: ${euiTheme.font.weight.bold};
-    color: ${isGroup ? euiTheme.colors.textSubdued : euiTheme.colors.textHeading};
-    text-align: center;
-    width: 100%;
-  `;
-
-  if (text.length <= SIMPLIFIED_LABEL_TRUNCATE_LENGTH) {
-    return (
-      <EuiText css={labelCss} data-test-subj={GRAPH_ENTITY_NODE_SIMPLIFIED_LABEL_ID}>
-        {text}
-      </EuiText>
-    );
-  }
-
   return (
-    <EuiToolTip content={text} display="block">
-      <EuiTextTruncate
-        data-test-subj={GRAPH_ENTITY_NODE_SIMPLIFIED_LABEL_ID}
-        truncation="middle"
-        text={text}
-        width={SIMPLIFIED_LABEL_MAX_WIDTH}
-        css={labelCss}
-      />
-    </EuiToolTip>
+    <EuiText
+      css={css`
+        ${metadataTextCss}
+        font-weight: ${euiTheme.font.weight.bold};
+        color: ${isGroup ? euiTheme.colors.textSubdued : euiTheme.colors.textHeading};
+        text-align: center;
+        white-space: nowrap;
+      `}
+      data-test-subj={GRAPH_ENTITY_NODE_SIMPLIFIED_LABEL_ID}
+    >
+      {text}
+    </EuiText>
   );
 };
 
@@ -1010,7 +903,11 @@ const SimplifiedCard = ({
     onMouseLeave={onActionsHoverLeave}
   >
     {showHoverActionsToolbar && getHoverActionItems && (
-      <EntityHoverActionsToolbar getItems={getHoverActionItems} isExiting={hoverToolbarExiting} />
+      <EntityHoverActionsToolbar
+        getItems={getHoverActionItems}
+        isExiting={hoverToolbarExiting}
+        showMetadataShortcut={!isGroup}
+      />
     )}
     <SimplifiedCardContainer>
       <SimplifiedIconShell>
@@ -1147,7 +1044,11 @@ const CompactColoredCard = ({
       onMouseLeave={onActionsHoverLeave}
     >
       {showHoverActionsToolbar && getHoverActionItems && (
-        <EntityHoverActionsToolbar getItems={getHoverActionItems} isExiting={hoverToolbarExiting} />
+        <EntityHoverActionsToolbar
+          getItems={getHoverActionItems}
+          isExiting={hoverToolbarExiting}
+          showMetadataShortcut={!isGroup}
+        />
       )}
       {highlightAsOrigin && (
         <OriginNodeOutline
@@ -1270,6 +1171,7 @@ export const CardNode = memo<NodeProps>((props: NodeProps) => {
     riskScoreMin,
     riskScoreMax,
     sources,
+    subType,
     highlightAsOrigin = false,
     entityActionsMode = 'hover',
     entityStyleMode = 'default',
@@ -1415,8 +1317,6 @@ export const CardNode = memo<NodeProps>((props: NodeProps) => {
     font-weight: ${euiTheme.font.weight.bold};
     color: ${euiTheme.colors.textHeading};
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
   `;
 
   const headerEntityTypeCss = css`
@@ -1424,57 +1324,53 @@ export const CardNode = memo<NodeProps>((props: NodeProps) => {
     font-weight: ${euiTheme.font.weight.regular};
     color: ${euiTheme.colors.textSubdued};
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
   `;
 
   const entityName = label ?? props.id;
-  // Single: entity name. Group: subtype title from `label` (e.g. "EC2 instances").
-  const headerPrimaryText = entityName;
-  const headerSecondaryText = entityTypeLabel;
-  // Tooltip shows the full hostname when the card truncates long labels (e.g. edge-sec-ubuntu-…).
+  // Single: entity name. Group: entity subtype (groups are aggregated by subtype).
+  const headerPrimaryText = isGroup ? subType ?? label ?? props.id : entityName;
+  // Singles keep entity-type subtitle; groups are a single header row (subtype + risk).
+  const headerSecondaryText = isGroup ? undefined : entityTypeLabel;
   const headerPrimaryTitle =
     typeof headerPrimaryText === 'string' ? headerPrimaryText : undefined;
 
-  // Figma default entity card: Borders/Base/Plain for all states — no primary/blue
-  // border on the origin or when selected (same color as sibling entity cards).
+  // Default card border is plain; selected/active uses primary (blue) to show details focus.
   const defaultBorderColor = euiTheme.colors.borderBasePlain;
-  const activeBorderColor = euiTheme.colors.borderBasePlain;
+  const activeBorderColor = euiTheme.colors.borderStrongPrimary;
   const cardBg = euiTheme.colors.backgroundBasePlain;
   const headerBg = cardBg;
   const iconBg = euiTheme.colors.backgroundBaseSubdued;
   const iconEmphasizedBg = iconBg;
-  // Figma entity icons: pure black stroke for both single and group glyphs.
+  // Figma entity icons: pure black stroke for EUI glyphs; brand SVGs keep their own fills.
   const iconAccent = '#000000';
   const originOutlineColor = euiTheme.colors.borderBaseProminent;
-  // Group cards always use the stacked-cards glyph (`group_entities.svg`).
-  const resolvedIcon = isGroup
-    ? resolveIcon(GROUP_CARD_ICON)
-    : resolveIcon(icon, tag);
+  // Groups use the real subtype icon (same resolution as singles) — not stacked-cards.
+  const resolvedIcon = resolveIcon(icon, tag);
+  const iconUsesBrandSvg = Boolean(icon && getSpanIcon(icon));
+  const iconColor = iconUsesBrandSvg ? undefined : iconAccent;
 
   // Risk badge is always shown in the header when score data is present (not a Layers toggle).
   const showRisk =
     riskScore !== undefined || (riskScoreMin !== undefined && riskScoreMax !== undefined);
-  // Node metadata toggles apply to both singles and groups (groups use +N counters
-  // and an asset-criticality range instead of per-level counts).
-  const showIp = Boolean(ips && ips.length > 0);
-  const showGeo = Boolean(countryCodes && countryCodes.length > 0);
-  const showCriticality = Boolean(assetCriticality || assetCriticalityCounts);
-  const showSource = Boolean(sources && sources.length > 0);
+  // Entity metadata body is single-entity only — groups never show metadata rows.
+  const showIp = !isGroup && Boolean(ips && ips.length > 0);
+  const showGeo = !isGroup && Boolean(countryCodes && countryCodes.length > 0);
+  const showCriticality =
+    !isGroup && Boolean(assetCriticality || assetCriticalityCounts);
+  const showSource = !isGroup && Boolean(sources && sources.length > 0);
   const showEntityIdField = !isGroup && Boolean(showEntityId);
-  const groupSubType = isGroup ? getGroupSubTypeLabel(entityName) : undefined;
-  const showSubType = Boolean(isGroup && groupSubType);
+  const showSubType = !isGroup && Boolean(subType);
   const hasBody =
     showIp || showGeo || showEntityIdField || showCriticality || showSource || showSubType;
 
-  // Figma group range shows higher score first (e.g. 90.01 - 50.00).
-  const riskRangeHigh =
-    riskScoreMin !== undefined && riskScoreMax !== undefined
-      ? Math.max(riskScoreMin, riskScoreMax)
-      : undefined;
+  // Group range: min first, then max (e.g. 50.00 - 90.01) — same as graph preview.
   const riskRangeLow =
     riskScoreMin !== undefined && riskScoreMax !== undefined
       ? Math.min(riskScoreMin, riskScoreMax)
+      : undefined;
+  const riskRangeHigh =
+    riskScoreMin !== undefined && riskScoreMax !== undefined
+      ? Math.max(riskScoreMin, riskScoreMax)
       : undefined;
 
   const riskBadges = showRisk ? (
@@ -1482,30 +1378,22 @@ export const CardNode = memo<NodeProps>((props: NodeProps) => {
       {riskScore !== undefined && riskScoreMin === undefined && (
         <RiskScoreBadge score={riskScore} />
       )}
-      {riskRangeHigh !== undefined && riskRangeLow !== undefined && (
+      {riskRangeLow !== undefined && riskRangeHigh !== undefined && (
         <>
-          <RiskScoreBadge score={riskRangeHigh} />
-          <EuiText css={metadataTextCss}>{'-'}</EuiText>
           <RiskScoreBadge score={riskRangeLow} />
+          <EuiText css={metadataTextCss}>{'-'}</EuiText>
+          <RiskScoreBadge score={riskRangeHigh} />
         </>
       )}
     </RiskBadgesRow>
   ) : null;
 
   const primaryIp = ips?.[0];
-  const extraIpCount = ips && ips.length > 1 ? ips.length - 1 : 0;
   const primaryCountry = countryCodes?.[0];
   const primaryFlag = primaryCountry ? getCountryFlag(primaryCountry) : null;
   const primaryCountryName = primaryCountry ? getCountryName(primaryCountry) : null;
-  // Groups show up to 2 flags then +N (Figma); singles show primary flag + overflow.
-  const visibleGeoCodes = isGroup
-    ? (countryCodes ?? []).slice(0, 2)
-    : primaryCountry
-    ? [primaryCountry]
-    : [];
-  const extraGeoCount = Math.max(0, (countryCodes?.length ?? 0) - visibleGeoCodes.length);
+  const extraGeoCount = Math.max(0, (countryCodes?.length ?? 0) - (primaryCountry ? 1 : 0));
   const primarySource = sources?.[0];
-  const extraSourceCount = sources && sources.length > 1 ? sources.length - 1 : 0;
 
   // Props retained on the node model / unused in this render path.
   void entityStyleMode;
@@ -1515,6 +1403,7 @@ export const CardNode = memo<NodeProps>((props: NodeProps) => {
   return (
     <CardWrapper
       ref={hoverContainerRef}
+      $fitContent
       $width={cardWidth}
       data-test-subj={GRAPH_ENTITY_NODE_ID}
       onMouseEnter={onActionsHoverOpen}
@@ -1525,6 +1414,7 @@ export const CardNode = memo<NodeProps>((props: NodeProps) => {
           getItems={getEntityActionItems}
           isExiting={hoverToolbarState === 'exiting'}
           onMetadataPopoverOpenChange={onMetadataPopoverOpenChange}
+          showMetadataShortcut={!isGroup}
         />
       )}
       {highlightAsOrigin && (
@@ -1537,7 +1427,7 @@ export const CardNode = memo<NodeProps>((props: NodeProps) => {
         css={css`
           display: flex;
           flex-direction: column;
-          width: 100%;
+          width: max-content;
         `}
       >
         <CardShell
@@ -1554,307 +1444,177 @@ export const CardNode = memo<NodeProps>((props: NodeProps) => {
               data-test-subj={GRAPH_ENTITY_NODE_HOVER_SHAPE_ID}
             >
               <IconBox bgColor={iconBg} emphasizedBackgroundColor={iconEmphasizedBg}>
-                <EuiIcon type={resolvedIcon} size="l" color={iconAccent} aria-hidden={true} />
+                <EuiIcon type={resolvedIcon} size="l" color={iconColor} aria-hidden={true} />
               </IconBox>
 
-              <HeaderText>
-                {isGroup ? (
-                  <>
+              <HeaderContent>
+                <HeaderText>
+                  {isGroup ? (
                     <HeaderTitleRow>
                       {count !== undefined && <GroupCountPill count={count} />}
-                      {headerPrimaryTitle && headerPrimaryTitle.length > 28 ? (
-                        <EuiToolTip content={headerPrimaryTitle} display="block">
-                          <EuiText css={headerNameCss}>{headerPrimaryText}</EuiText>
-                        </EuiToolTip>
-                      ) : (
-                        <EuiText css={headerNameCss}>{headerPrimaryText}</EuiText>
-                      )}
+                      <EuiText css={headerNameCss} title={headerPrimaryTitle}>
+                        {headerPrimaryText}
+                      </EuiText>
                     </HeaderTitleRow>
-                    <HeaderSecondaryRow>
+                  ) : (
+                    <>
+                      <EuiText css={headerNameCss} title={headerPrimaryTitle}>
+                        {headerPrimaryText}
+                      </EuiText>
                       {headerSecondaryText ? (
                         <EuiText css={headerEntityTypeCss}>{headerSecondaryText}</EuiText>
-                      ) : (
-                        <span />
-                      )}
-                      {riskBadges}
-                    </HeaderSecondaryRow>
-                  </>
-                ) : (
-                  <>
-                    {headerPrimaryTitle && headerPrimaryTitle.length > 24 ? (
-                      <EuiToolTip content={headerPrimaryTitle} display="block">
-                        <EuiText css={headerNameCss}>{headerPrimaryText}</EuiText>
-                      </EuiToolTip>
-                    ) : (
-                      <EuiText css={headerNameCss}>{headerPrimaryText}</EuiText>
-                    )}
-                    {headerSecondaryText ? (
-                      <EuiText css={headerEntityTypeCss}>{headerSecondaryText}</EuiText>
-                    ) : null}
-                  </>
-                )}
-              </HeaderText>
+                      ) : null}
+                    </>
+                  )}
+                </HeaderText>
 
-              {!isGroup && riskBadges}
+                {riskBadges}
+              </HeaderContent>
             </CardHeader>
 
-            {/* Metadata body — only when Apply filters → Node metadata toggles are on */}
+            {/* Metadata body — Figma: Sub-type | Source, IP | Geo, Asset criticality */}
             {hasBody && (
               <CardBody data-test-subj={GRAPH_ENTITY_NODE_DETAILS_ID}>
-                {isGroup ? (
-                  <>
-                    {/* Figma group metadata: Sub-type | Source */}
-                    {(showSubType || showSource) && (
-                      <MetadataRow>
-                        {showSubType && (
-                          <MetadataField>
-                            <FieldLabel>
-                              {i18n.translate(
-                                'securitySolutionPackages.csp.graph.node.card.label.subType',
-                                { defaultMessage: 'Sub-type' }
-                              )}
-                            </FieldLabel>
-                            <FieldValue truncate>{groupSubType}</FieldValue>
-                          </MetadataField>
-                        )}
-                        {showSource && (
-                          <MetadataField>
-                            <FieldLabel>
-                              {i18n.translate(
-                                'securitySolutionPackages.csp.graph.node.card.label.source',
-                                { defaultMessage: 'Source' }
-                              )}
-                            </FieldLabel>
-                            <MetadataValueRow>
-                              <FieldValue truncate>{primarySource}</FieldValue>
-                              {extraSourceCount > 0 && (
-                                <OverflowBadge count={extraSourceCount} />
-                              )}
-                            </MetadataValueRow>
-                          </MetadataField>
-                        )}
-                      </MetadataRow>
-                    )}
-
-                    {/* IP +N | Geolocation flags +N */}
-                    {(showIp || showGeo) && (
-                      <MetadataRow>
-                        {showIp && (
-                          <MetadataField>
-                            <FieldLabel>
-                              {i18n.translate(
-                                'securitySolutionPackages.csp.graph.node.card.label.ipAddress',
-                                { defaultMessage: 'IP address' }
-                              )}
-                            </FieldLabel>
-                            <MetadataValueRow>
-                              {ipClickHandler && primaryIp ? (
-                                <EuiButtonEmpty
-                                  size="s"
-                                  color="text"
-                                  flush="both"
-                                  onClick={ipClickHandler}
-                                  css={css`
-                                    ${metadataTextCss}
-                                    font-weight: 400;
-                                    height: ${CARD_METADATA_LINE_HEIGHT}px;
-                                    min-height: ${CARD_METADATA_LINE_HEIGHT}px;
-                                  `}
-                                >
-                                  {primaryIp}
-                                </EuiButtonEmpty>
-                              ) : (
-                                <FieldValue truncate>{primaryIp}</FieldValue>
-                              )}
-                              {extraIpCount > 0 && <OverflowBadge count={extraIpCount} />}
-                            </MetadataValueRow>
-                          </MetadataField>
-                        )}
-
-                        {showGeo && (
-                          <MetadataField>
-                            <FieldLabel>
-                              {i18n.translate(
-                                'securitySolutionPackages.csp.graph.node.card.label.geolocation',
-                                { defaultMessage: 'Geolocation' }
-                              )}
-                            </FieldLabel>
-                            <MetadataValueRow>
-                              {visibleGeoCodes.map((code) => {
-                                const flag = getCountryFlag(code);
-                                if (!flag) return null;
-                                return (
-                                  <span key={code} css={metadataTextCss} title={getCountryName(code) ?? code}>
-                                    {flag}
-                                  </span>
-                                );
-                              })}
-                              {extraGeoCount > 0 && <OverflowBadge count={extraGeoCount} />}
-                            </MetadataValueRow>
-                          </MetadataField>
-                        )}
-                      </MetadataRow>
-                    )}
-
-                    {/* Asset criticality range (Extreme impact - High impact) */}
-                    {showCriticality && (
+                {(showSubType || showSource) && (
+                  <MetadataRow>
+                    {showSubType && (
                       <MetadataField>
                         <FieldLabel>
                           {i18n.translate(
-                            'securitySolutionPackages.csp.graph.node.card.label.assetCriticality',
-                            { defaultMessage: 'Asset criticality' }
+                            'securitySolutionPackages.csp.graph.node.card.label.subType',
+                            { defaultMessage: 'Sub-type' }
                           )}
                         </FieldLabel>
-                        {assetCriticalityCounts ? (
-                          <CriticalityRange counts={assetCriticalityCounts} />
-                        ) : assetCriticality ? (
-                          <EuiHealth
-                            color={getCriticalityHealthColor(assetCriticality)}
-                            textSize="inherit"
-                            css={metadataTextCss}
-                          >
-                            {assetCriticality}
-                          </EuiHealth>
-                        ) : null}
+                        <FieldValue truncate>{subType}</FieldValue>
                       </MetadataField>
                     )}
-                  </>
-                ) : (
-                  <>
-                    {(showIp || showGeo) && (
-                      <MetadataRow>
-                        {showIp && (
-                          <MetadataField>
-                            <FieldLabel>
-                              {i18n.translate(
-                                'securitySolutionPackages.csp.graph.node.card.label.ipAddress',
-                                { defaultMessage: 'IP address' }
-                              )}
-                            </FieldLabel>
-                            <MetadataValueRow>
-                              {ipClickHandler && primaryIp ? (
-                                <EuiButtonEmpty
-                                  size="s"
-                                  color="text"
-                                  flush="both"
-                                  onClick={ipClickHandler}
-                                  css={css`
-                                    ${metadataTextCss}
-                                    font-weight: 400;
-                                    height: ${CARD_METADATA_LINE_HEIGHT}px;
-                                    min-height: ${CARD_METADATA_LINE_HEIGHT}px;
-                                  `}
-                                >
-                                  {primaryIp}
-                                </EuiButtonEmpty>
-                              ) : (
-                                <FieldValue truncate>{primaryIp}</FieldValue>
-                              )}
-                              {extraIpCount > 0 && <OverflowBadge count={extraIpCount} />}
-                            </MetadataValueRow>
-                          </MetadataField>
-                        )}
 
-                        {showGeo && (
-                          <MetadataField>
-                            <FieldLabel>
-                              {i18n.translate(
-                                'securitySolutionPackages.csp.graph.node.card.label.geolocation',
-                                { defaultMessage: 'Geolocation' }
-                              )}
-                            </FieldLabel>
-                            <MetadataValueRow>
-                              {primaryFlag &&
-                                (countryClickHandler ? (
-                                  <EuiButtonEmpty
-                                    size="s"
-                                    color="text"
-                                    flush="both"
-                                    onClick={countryClickHandler}
-                                    css={css`
-                                      height: ${CARD_METADATA_LINE_HEIGHT}px;
-                                      min-height: ${CARD_METADATA_LINE_HEIGHT}px;
-                                      padding: 0;
-                                    `}
-                                  >
-                                    <span css={metadataTextCss}>
-                                      {primaryCountryName
-                                        ? `${primaryFlag} ${primaryCountryName}`
-                                        : primaryFlag}
-                                    </span>
-                                  </EuiButtonEmpty>
-                                ) : (
-                                  <span css={metadataTextCss}>
-                                    {primaryCountryName
-                                      ? `${primaryFlag} ${primaryCountryName}`
-                                      : primaryFlag}
-                                  </span>
-                                ))}
-                              {extraGeoCount > 0 && <OverflowBadge count={extraGeoCount} />}
-                            </MetadataValueRow>
-                          </MetadataField>
-                        )}
-                      </MetadataRow>
-                    )}
-
-                    {showEntityIdField && (
+                    {showSource && (
                       <MetadataField>
                         <FieldLabel>
                           {i18n.translate(
-                            'securitySolutionPackages.csp.graph.node.card.label.entityId',
-                            { defaultMessage: 'Entity ID' }
+                            'securitySolutionPackages.csp.graph.node.card.label.source',
+                            { defaultMessage: 'Source' }
                           )}
                         </FieldLabel>
                         <MetadataValueRow>
-                          <FieldValue truncate>{props.id}</FieldValue>
+                          <FieldValue truncate>{primarySource}</FieldValue>
+                        </MetadataValueRow>
+                      </MetadataField>
+                    )}
+                  </MetadataRow>
+                )}
+
+                {(showIp || showGeo) && (
+                  <MetadataRow>
+                    {showIp && (
+                      <MetadataField>
+                        <FieldLabel>
+                          {i18n.translate(
+                            'securitySolutionPackages.csp.graph.node.card.label.ipAddress',
+                            { defaultMessage: 'IP address' }
+                          )}
+                        </FieldLabel>
+                        <MetadataValueRow>
+                          {ipClickHandler && primaryIp ? (
+                            <EuiButtonEmpty
+                              size="s"
+                              color="text"
+                              flush="both"
+                              onClick={ipClickHandler}
+                              css={css`
+                                ${metadataTextCss}
+                                font-weight: 400;
+                                height: ${CARD_METADATA_LINE_HEIGHT}px;
+                                min-height: ${CARD_METADATA_LINE_HEIGHT}px;
+                              `}
+                            >
+                              {primaryIp}
+                            </EuiButtonEmpty>
+                          ) : (
+                            <FieldValue truncate>{primaryIp}</FieldValue>
+                          )}
                         </MetadataValueRow>
                       </MetadataField>
                     )}
 
-                    {(showCriticality || showSource) && (
-                      <MetadataRow>
-                        {showCriticality && (
-                          <MetadataField>
-                            <FieldLabel>
-                              {i18n.translate(
-                                'securitySolutionPackages.csp.graph.node.card.label.assetCriticality',
-                                { defaultMessage: 'Asset criticality' }
-                              )}
-                            </FieldLabel>
-                            {assetCriticality && !assetCriticalityCounts && (
-                              <EuiHealth
-                                color={getCriticalityHealthColor(assetCriticality)}
-                                textSize="inherit"
-                                css={metadataTextCss}
+                    {showGeo && (
+                      <MetadataField>
+                        <FieldLabel>
+                          {i18n.translate(
+                            'securitySolutionPackages.csp.graph.node.card.label.geolocation',
+                            { defaultMessage: 'Geolocation' }
+                          )}
+                        </FieldLabel>
+                        <MetadataValueRow>
+                          {primaryFlag &&
+                            (countryClickHandler ? (
+                              <EuiButtonEmpty
+                                size="s"
+                                color="text"
+                                flush="both"
+                                onClick={countryClickHandler}
+                                css={css`
+                                  height: ${CARD_METADATA_LINE_HEIGHT}px;
+                                  min-height: ${CARD_METADATA_LINE_HEIGHT}px;
+                                  padding: 0;
+                                `}
                               >
-                                {assetCriticality}
-                              </EuiHealth>
-                            )}
-                            {assetCriticalityCounts && (
-                              <CriticalityCountsGrid counts={assetCriticalityCounts} />
-                            )}
-                          </MetadataField>
-                        )}
-
-                        {showSource && (
-                          <MetadataField>
-                            <FieldLabel>
-                              {i18n.translate(
-                                'securitySolutionPackages.csp.graph.node.card.label.source',
-                                { defaultMessage: 'Source' }
-                              )}
-                            </FieldLabel>
-                            <MetadataValueRow>
-                              <FieldValue truncate>{primarySource}</FieldValue>
-                              {extraSourceCount > 0 && (
-                                <OverflowBadge count={extraSourceCount} />
-                              )}
-                            </MetadataValueRow>
-                          </MetadataField>
-                        )}
-                      </MetadataRow>
+                                <span css={metadataTextCss}>
+                                  {primaryCountryName
+                                    ? `${primaryFlag} ${primaryCountryName}`
+                                    : primaryFlag}
+                                </span>
+                              </EuiButtonEmpty>
+                            ) : (
+                              <span css={metadataTextCss}>
+                                {primaryCountryName
+                                  ? `${primaryFlag} ${primaryCountryName}`
+                                  : primaryFlag}
+                              </span>
+                            ))}
+                          {extraGeoCount > 0 && <OverflowBadge count={extraGeoCount} />}
+                        </MetadataValueRow>
+                      </MetadataField>
                     )}
-                  </>
+                  </MetadataRow>
+                )}
+
+                {showEntityIdField && (
+                  <MetadataField>
+                    <FieldLabel>
+                      {i18n.translate(
+                        'securitySolutionPackages.csp.graph.node.card.label.entityId',
+                        { defaultMessage: 'Entity ID' }
+                      )}
+                    </FieldLabel>
+                    <MetadataValueRow>
+                      <FieldValue truncate>{props.id}</FieldValue>
+                    </MetadataValueRow>
+                  </MetadataField>
+                )}
+
+                {showCriticality && (
+                  <MetadataField>
+                    <FieldLabel>
+                      {i18n.translate(
+                        'securitySolutionPackages.csp.graph.node.card.label.assetCriticality',
+                        { defaultMessage: 'Asset criticality' }
+                      )}
+                    </FieldLabel>
+                    {assetCriticality && !assetCriticalityCounts && (
+                      <EuiHealth
+                        color={getCriticalityHealthColor(assetCriticality)}
+                        textSize="inherit"
+                        css={metadataTextCss}
+                      >
+                        {assetCriticality}
+                      </EuiHealth>
+                    )}
+                    {assetCriticalityCounts && (
+                      <CriticalityCountsGrid counts={assetCriticalityCounts} />
+                    )}
+                  </MetadataField>
                 )}
               </CardBody>
             )}
@@ -1881,6 +1641,8 @@ export const CardNode = memo<NodeProps>((props: NodeProps) => {
             top: 0;
             left: 0;
             z-index: 1;
+            width: 100% !important;
+            height: 100% !important;
           `}
         />
       )}

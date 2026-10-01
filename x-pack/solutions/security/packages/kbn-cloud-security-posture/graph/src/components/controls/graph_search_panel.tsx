@@ -6,13 +6,15 @@
  */
 
 import React, { type PropsWithChildren, useMemo } from 'react';
-import { EuiHorizontalRule, EuiPopover, useEuiTheme } from '@elastic/eui';
+import { EuiHorizontalRule, useGeneratedHtmlId } from '@elastic/eui';
 import { css } from '@emotion/react';
+import { i18n } from '@kbn/i18n';
 import type { NodeViewModel } from '../types';
-import { useGraphFullscreenContext } from '../graph/graph_fullscreen_context';
 import { GraphFindInPage } from './graph_find_in_page';
 import { GraphEntityFiltersSection } from './graph_entity_filters_section';
 import type { GraphEntityFiltersState } from './graph_entity_filters';
+import { GraphTopLeftFloatingPanel } from './graph_top_left_floating_panel';
+import { GRAPH_PANEL_INSET } from '../constants';
 
 export interface GraphSearchPanelProps extends PropsWithChildren {
   isOpen: boolean;
@@ -20,10 +22,16 @@ export interface GraphSearchPanelProps extends PropsWithChildren {
   nodes: NodeViewModel[];
   entityFilters: GraphEntityFiltersState;
   onEntityFiltersChange: (next: GraphEntityFiltersState) => void;
-  /** Popover anchor relative to the trigger button. */
-  anchorPosition?: 'upCenter' | 'leftDown' | 'leftUp' | 'downCenter';
 }
 
+const searchTitle = i18n.translate('securitySolutionPackages.csp.graph.controls.search.title', {
+  defaultMessage: 'Search',
+});
+
+/**
+ * In-graph Search / entity filters — opens as a top-left floating panel
+ * (same chrome inset as Display / Keyboard shortcuts).
+ */
 export const GraphSearchPanel = ({
   isOpen,
   onClose,
@@ -31,35 +39,38 @@ export const GraphSearchPanel = ({
   entityFilters,
   onEntityFiltersChange,
   children,
-  anchorPosition = 'upCenter',
 }: GraphSearchPanelProps) => {
-  const { euiTheme } = useEuiTheme();
-  const fullscreenContext = useGraphFullscreenContext();
+  const titleId = useGeneratedHtmlId({ prefix: 'graph-search-title' });
   const panelCss = useMemo(
     () => css`
       width: 320px;
-      padding: ${euiTheme.size.m};
+      max-width: calc(100vw - ${GRAPH_PANEL_INSET * 2}px);
+      padding: ${GRAPH_PANEL_INSET}px;
+      box-sizing: border-box;
     `,
-    [euiTheme]
+    []
   );
 
   return (
-    <EuiPopover
-      button={children}
+    <GraphTopLeftFloatingPanel
       isOpen={isOpen}
-      closePopover={onClose}
-      anchorPosition={anchorPosition}
-      panelPaddingSize="none"
-      container={fullscreenContext?.overlayContainerRef.current ?? undefined}
+      onClose={onClose}
+      title={searchTitle}
+      titleId={titleId}
+      aria-label={searchTitle}
+      data-test-subj="graphSearchPanel"
+      body={
+        <div css={panelCss}>
+          <GraphFindInPage nodes={nodes} />
+          <EuiHorizontalRule margin="m" />
+          <GraphEntityFiltersSection
+            filters={entityFilters}
+            onFiltersChange={onEntityFiltersChange}
+          />
+        </div>
+      }
     >
-      <div css={panelCss} data-test-subj="graphSearchPanel">
-        <GraphFindInPage nodes={nodes} />
-        <EuiHorizontalRule margin="m" />
-        <GraphEntityFiltersSection
-          filters={entityFilters}
-          onFiltersChange={onEntityFiltersChange}
-        />
-      </div>
-    </EuiPopover>
+      {children as React.ReactElement}
+    </GraphTopLeftFloatingPanel>
   );
 };

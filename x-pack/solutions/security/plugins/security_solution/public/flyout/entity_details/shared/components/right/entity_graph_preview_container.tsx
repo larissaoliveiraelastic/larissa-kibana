@@ -43,6 +43,7 @@ export const EntityGraphPreviewContainer = memo(
           end: 'now',
         },
       },
+      originRiskScore,
       options: {
         enabled: shouldShowGraph,
         refetchOnWindowFocus: false,

@@ -164,30 +164,8 @@ describe('RelationshipNode', () => {
     });
   });
 
-  describe('Tooltip', () => {
-    test('shows tooltip when text is truncated', async () => {
-      const props = {
-        ...baseProps,
-        data: {
-          ...baseProps.data,
-          label: 'This relationship label is too long so it will be truncated for sure',
-        },
-      };
-
-      render(
-        <ReactFlow>
-          <RelationshipNode {...props} />
-        </ReactFlow>
-      );
-
-      await userEvent.hover(screen.getByTestId(GRAPH_RELATIONSHIP_NODE_LABEL_TEXT_ID));
-
-      await waitFor(() => {
-        expect(screen.queryByTestId(GRAPH_RELATIONSHIP_NODE_TOOLTIP_ID)).toBeInTheDocument();
-      });
-    });
-
-    test('tooltip shows full text content', async () => {
+  describe('Label text', () => {
+    test('shows full label text without truncation', () => {
       const longText =
         'This is a very long relationship label that exceeds twenty-seven characters';
       const props = {
@@ -204,28 +182,8 @@ describe('RelationshipNode', () => {
         </ReactFlow>
       );
 
-      await userEvent.hover(screen.getByTestId(GRAPH_RELATIONSHIP_NODE_LABEL_TEXT_ID));
-
-      await waitFor(() => {
-        expect(screen.queryByTestId(GRAPH_RELATIONSHIP_NODE_TOOLTIP_ID)).toBeInTheDocument();
-        expect(screen.queryByTestId(GRAPH_RELATIONSHIP_NODE_TOOLTIP_ID)).toHaveTextContent(
-          longText
-        );
-      });
-    });
-
-    test('does not show tooltip for short text', async () => {
-      render(
-        <ReactFlow>
-          <RelationshipNode {...baseProps} />
-        </ReactFlow>
-      );
-
-      await userEvent.hover(screen.getByTestId(GRAPH_RELATIONSHIP_NODE_LABEL_TEXT_ID));
-
-      await waitFor(() => {
-        expect(screen.queryByTestId(GRAPH_RELATIONSHIP_NODE_TOOLTIP_ID)).not.toBeInTheDocument();
-      });
+      expect(screen.getByTestId(GRAPH_RELATIONSHIP_NODE_LABEL_TEXT_ID)).toHaveTextContent(longText);
+      expect(screen.queryByTestId(GRAPH_RELATIONSHIP_NODE_TOOLTIP_ID)).not.toBeInTheDocument();
     });
   });
 
@@ -234,10 +192,13 @@ describe('RelationshipNode', () => {
       colors: {
         danger: '#FF0000',
         backgroundBasePrimary: '#0000FF',
+        backgroundLightPrimary: '#e6f0ff',
         borderStrongPrimary: '#0000DD',
+        borderBasePrimary: '#0b64dd',
         textInverse: '#FFFFFF',
         textPrimary: '#000000',
         textParagraph: '#DDDDDD',
+        backgroundBasePlain: '#ffffff',
         backgroundLightText: '#a1b2c3',
         backgroundFilledText: '#333333',
         backgroundBaseFormsControlDisabled: '#8899aa',
@@ -246,12 +207,12 @@ describe('RelationshipNode', () => {
       },
     };
 
-    it('should return relationship pill colors from the Figma spec', () => {
+    it('should return relationship pill colors from the Figma Event spec', () => {
       const colors = getRelationshipColors(mockEuiTheme as EuiThemeComputed);
       expect(colors).toEqual({
-        backgroundColor: mockEuiTheme.colors.backgroundLightText,
+        backgroundColor: mockEuiTheme.colors.backgroundLightPrimary,
         emphasizedBackgroundColor: mockEuiTheme.colors.backgroundBaseFormsControlDisabled,
-        borderColor: mockEuiTheme.colors.borderBasePlain,
+        borderColor: mockEuiTheme.colors.borderBasePrimary,
         textColor: mockEuiTheme.colors.textParagraph,
       });
     });

@@ -68,11 +68,27 @@ interface TargetEntitySource {
 export const parseTargetMetadataHits = (hits: Array<{ _source?: unknown }>): TargetMetadataMap => {
   const result: TargetMetadataMap = new Map();
   for (const hit of hits) {
-    const { id, name, EngineMetadata, risk, relationships } =
-      (hit._source as TargetEntitySource)?.entity ?? {};
+    const source = hit._source as TargetEntitySource & {
+      host?: { risk?: { calculated_score_norm?: number } };
+      user?: { risk?: { calculated_score_norm?: number } };
+      service?: { risk?: { calculated_score_norm?: number } };
+    };
+    const { id, name, EngineMetadata, risk, relationships } = source?.entity ?? {};
     const type = EngineMetadata?.Type;
     const riskScore = relationships?.resolution?.risk?.calculated_score_norm ?? null;
-    const individualRiskScore = risk?.calculated_score_norm ?? null;
+    const entityScore = risk?.calculated_score_norm;
+    const typedScore =
+      source?.host?.risk?.calculated_score_norm ??
+      source?.user?.risk?.calculated_score_norm ??
+      source?.service?.risk?.calculated_score_norm ??
+      null;
+    // Prefer positive entity.risk; fall back to typed risk when reset-to-zero wiped it.
+    const individualRiskScore =
+      entityScore != null && entityScore > 0
+        ? entityScore
+        : typedScore != null && typedScore > 0
+          ? typedScore
+          : entityScore ?? typedScore ?? null;
 
     if (id && name && type) {
       result.set(id, { name, type, riskScore, individualRiskScore });
@@ -166,6 +182,9 @@ export const useFetchTargetMetadata = (entityIds: string[]): TargetMetadataMap =
               ENTITY_FIELDS.ENTITY_TYPE,
               ENTITY_FIELDS.ENTITY_RISK,
               ENTITY_FIELDS.RESOLUTION_RISK_SCORE,
+              'host.risk.calculated_score_norm',
+              'user.risk.calculated_score_norm',
+              'service.risk.calculated_score_norm',
             ],
             query: {
               bool: {

@@ -10,5 +10,8 @@ import type { EntityItem, EventItem, AlertItem } from './types';
 export const displayEventName = ({ action, id }: Pick<EventItem | AlertItem, 'action' | 'id'>) =>
   action || id || '-';
 
-export const displayEntityName = ({ label, id }: Pick<EntityItem, 'label' | 'id'>) =>
-  label || id || '-';
+export const displayEntityName = ({
+  label,
+  id,
+  entity,
+}: Pick<EntityItem, 'label' | 'id' | 'entity'>) => label || entity?.name || id || '-';

@@ -23,13 +23,14 @@ export const ListHeader = ({ groupedItemsType }: ListHeaderProps) => {
         display: flex;
         justify-content: space-between;
         align-items: center;
+        flex: 0 0 auto;
       `}
     >
       <EuiText
-        size="m"
+        size="s"
         color="default"
         css={css`
-          font-weight: ${euiTheme.font.weight.medium};
+          font-weight: ${euiTheme.font.weight.semiBold};
         `}
       >
         {i18n.translate(`${i18nNamespaceKey}.groupedTypes`, {

@@ -6,7 +6,14 @@
  */
 
 import React, { useMemo } from 'react';
-import { EuiFlexGroup, EuiFlexItem, EuiText, useEuiTheme, useGeneratedHtmlId } from '@elastic/eui';
+import {
+  EuiBadge,
+  EuiFlexGroup,
+  EuiFlexItem,
+  EuiText,
+  useEuiTheme,
+  useGeneratedHtmlId,
+} from '@elastic/eui';
 import { css } from '@emotion/react';
 import { i18n } from '@kbn/i18n';
 import {
@@ -19,6 +26,14 @@ import {
   ZOOM_OUT_SHORTCUT,
 } from './graph_keyboard_shortcuts';
 import { GraphTopLeftFloatingPanel } from './graph_top_left_floating_panel';
+
+/** Figma View Controls — Keyboard shortcuts frame width. */
+const SHORTCUTS_PANEL_WIDTH = 290;
+/** Figma EuiBadge hollow key chip. */
+const KEY_BADGE_HEIGHT = 20;
+const KEY_BADGE_MIN_WIDTH = 28;
+const KEY_BADGE_PADDING_X = 8;
+const KEY_BADGE_RADIUS = 20;
 
 const panelTitle = i18n.translate(
   'securitySolutionPackages.csp.graph.controls.keyboardShortcuts.title',
@@ -84,36 +99,37 @@ export const GraphKeyboardShortcutsPanel = ({
   children,
 }: GraphKeyboardShortcutsPanelProps) => {
   const { euiTheme } = useEuiTheme();
-  const keysCss = useMemo(
-    () => css`
-      display: flex;
-      gap: ${euiTheme.size.xs};
+  const titleId = useGeneratedHtmlId();
 
-      & kbd {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        min-width: 20px;
-        padding: 0 ${euiTheme.size.xs};
-        border: ${euiTheme.border.thin};
-        border-radius: ${euiTheme.border.radius.small};
-        background-color: ${euiTheme.colors.backgroundBasePlain};
-        color: ${euiTheme.colors.textSubdued};
-        font-weight: ${euiTheme.font.weight.medium};
-        font-size: ${euiTheme.font.scale.xs};
-        line-height: ${euiTheme.size.l};
-        text-align: center;
-      }
+  const labelCss = useMemo(
+    () => css`
+      color: ${euiTheme.colors.textParagraph};
     `,
     [euiTheme]
   );
-  const titleId = useGeneratedHtmlId();
 
-  const bodyCss = useMemo(
+  const badgeCss = useMemo(
     () => css`
-      width: 320px;
-      padding: ${euiTheme.size.m};
-      box-sizing: border-box;
+      /* Figma: EuiBadge hollow — 28×20, radius 20, pad 8 / 0 */
+      height: ${KEY_BADGE_HEIGHT}px;
+      min-width: ${KEY_BADGE_MIN_WIDTH}px;
+      padding: 0 ${KEY_BADGE_PADDING_X}px !important;
+      border-radius: ${KEY_BADGE_RADIUS}px !important;
+      line-height: ${KEY_BADGE_HEIGHT}px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: ${euiTheme.font.weight.medium};
+    `,
+    [euiTheme]
+  );
+
+  const listCss = useMemo(
+    () => css`
+      /* 16px between rows; header→list uses 24px on the stacked floating panel. */
+      display: flex;
+      flex-direction: column;
+      gap: ${euiTheme.size.base};
     `,
     [euiTheme]
   );
@@ -124,32 +140,37 @@ export const GraphKeyboardShortcutsPanel = ({
       onClose={onClose}
       title={panelTitle}
       titleId={titleId}
+      layout="stacked"
+      width={SHORTCUTS_PANEL_WIDTH}
       data-test-subj="graphKeyboardShortcutsPanel"
       body={
-        <div css={bodyCss}>
-          <EuiFlexGroup direction="column" gutterSize="s">
-            {shortcuts.map(({ label, keys }) => (
-              <EuiFlexItem key={label}>
-                <EuiFlexGroup
-                  alignItems="center"
-                  justifyContent="spaceBetween"
-                  gutterSize="m"
-                  responsive={false}
-                >
-                  <EuiFlexItem grow={false}>
-                    <EuiText size="s">{label}</EuiText>
-                  </EuiFlexItem>
-                  <EuiFlexItem grow={false}>
-                    <EuiText size="xs" css={keysCss}>
-                      {keys.map((key) => (
-                        <kbd key={key}>{key}</kbd>
-                      ))}
-                    </EuiText>
-                  </EuiFlexItem>
+        <div css={listCss}>
+          {shortcuts.map(({ label, keys }) => (
+            <EuiFlexGroup
+              key={label}
+              alignItems="center"
+              justifyContent="spaceBetween"
+              gutterSize="m"
+              responsive={false}
+            >
+              <EuiFlexItem grow={true}>
+                <EuiText size="s" css={labelCss}>
+                  {label}
+                </EuiText>
+              </EuiFlexItem>
+              <EuiFlexItem grow={false}>
+                <EuiFlexGroup gutterSize="xs" responsive={false} alignItems="center">
+                  {keys.map((key) => (
+                    <EuiFlexItem key={key} grow={false}>
+                      <EuiBadge color="hollow" css={badgeCss}>
+                        {key}
+                      </EuiBadge>
+                    </EuiFlexItem>
+                  ))}
                 </EuiFlexGroup>
               </EuiFlexItem>
-            ))}
-          </EuiFlexGroup>
+            </EuiFlexGroup>
+          ))}
         </div>
       }
     >

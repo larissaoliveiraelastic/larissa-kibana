@@ -25,12 +25,11 @@ export const AnimatedSearchBarContainer = styled.div`
    * can wrap long chip values onto multiple lines (matching Timeline's behavior).
    */
   grid-template-columns: minmax(0, 1fr);
-  border-top: ${() => useBorder()};
+  /* No border-top when open — flyout header already draws the divider; a second rule stacks. */
   padding: 16px 8px;
 
   &.toggled-off {
     padding: 0;
-    border-top: none;
     transform: translateY(-100%);
     grid-template-rows: 0fr;
   }

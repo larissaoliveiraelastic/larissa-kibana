@@ -22,6 +22,7 @@ import { css } from '@emotion/react';
 import { i18n } from '@kbn/i18n';
 import { useGraphFullscreenContext } from '../graph/graph_fullscreen_context';
 import { GraphTopLeftFloatingPanel } from './graph_top_left_floating_panel';
+import { GRAPH_PANEL_INSET } from '../constants';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -35,10 +36,12 @@ export interface GraphFiltersState {
     reportsTo: boolean;
   };
   nodeMetadata: {
+    /** Single-entity Sub-type row — first body field when Display toggle is on. */
+    subType: boolean;
+    source: boolean;
     ipAddress: boolean;
     geolocation: boolean;
     assetCriticality: boolean;
-    source: boolean;
   };
   eventAlertMetadata: {
     sourceIpAddress: boolean;
@@ -56,10 +59,11 @@ export const DEFAULT_GRAPH_FILTERS: GraphFiltersState = {
     reportsTo: true,
   },
   nodeMetadata: {
+    subType: false,
+    source: false,
     ipAddress: false,
     geolocation: false,
     assetCriticality: false,
-    source: false,
   },
   eventAlertMetadata: {
     sourceIpAddress: true,
@@ -93,6 +97,12 @@ const RELATIONSHIP_LABELS: Record<keyof GraphFiltersState['relationshipTypes'], 
 };
 
 export const NODE_METADATA_LABELS: Record<keyof GraphFiltersState['nodeMetadata'], string> = {
+  subType: i18n.translate('securitySolutionPackages.csp.graph.filters.nodeMetadata.subType', {
+    defaultMessage: 'Sub-type',
+  }),
+  source: i18n.translate('securitySolutionPackages.csp.graph.filters.nodeMetadata.source', {
+    defaultMessage: 'Source',
+  }),
   ipAddress: i18n.translate('securitySolutionPackages.csp.graph.filters.nodeMetadata.ipAddress', {
     defaultMessage: 'IP address(-es)',
   }),
@@ -104,9 +114,6 @@ export const NODE_METADATA_LABELS: Record<keyof GraphFiltersState['nodeMetadata'
     'securitySolutionPackages.csp.graph.filters.nodeMetadata.assetCriticality',
     { defaultMessage: 'Asset criticality' }
   ),
-  source: i18n.translate('securitySolutionPackages.csp.graph.filters.nodeMetadata.source', {
-    defaultMessage: 'Source',
-  }),
 };
 
 const EVENT_ALERT_LABELS: Record<keyof GraphFiltersState['eventAlertMetadata'], string> = {
@@ -121,8 +128,8 @@ const EVENT_ALERT_LABELS: Record<keyof GraphFiltersState['eventAlertMetadata'], 
 };
 
 const NODE_METADATA_SECTION_TITLE = i18n.translate(
-  'securitySolutionPackages.csp.graph.filters.section.nodeMetadata',
-  { defaultMessage: 'Node metadata' }
+  'securitySolutionPackages.csp.graph.filters.section.singleNodeMetadata',
+  { defaultMessage: 'Single node metadata' }
 );
 
 // ── Shared sections ───────────────────────────────────────────────────────────
@@ -180,7 +187,7 @@ export const NodeMetadataFilterSection = ({
   return (
     <FilterSection title={NODE_METADATA_SECTION_TITLE}>
       {(
-        Object.keys(filtersState.nodeMetadata) as Array<keyof GraphFiltersState['nodeMetadata']>
+        Object.keys(NODE_METADATA_LABELS) as Array<keyof GraphFiltersState['nodeMetadata']>
       ).map((key) => (
         <EuiFlexItem key={key} grow={false}>
           <EuiCheckbox
@@ -260,7 +267,7 @@ export const ApplyFiltersPopover = ({
 
   const ariaLabel = isNodeMetadataOnly
     ? i18n.translate('securitySolutionPackages.csp.graph.filters.nodeMetadataPopover.ariaLabel', {
-        defaultMessage: 'Entity metadata display options',
+        defaultMessage: 'Single node metadata display options',
       })
     : i18n.translate('securitySolutionPackages.csp.graph.filters.popover.ariaLabel', {
         defaultMessage: 'Apply graph filters',
@@ -366,7 +373,7 @@ export const ApplyFiltersPopover = ({
         body={
           <div
             css={css`
-              padding: 12px;
+              padding: ${GRAPH_PANEL_INSET}px;
             `}
           >
             {panelBody}

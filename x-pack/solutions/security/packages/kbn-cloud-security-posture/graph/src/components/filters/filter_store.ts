@@ -336,10 +336,16 @@ export class FilterStore {
   }
 
   /**
-   * Check if an entity ID is part of the initial set of entities (e.g. from the original graph request).
+   * Check if an entity ID is the graph origin (first / base entity of the investigation).
+   * Matches exact id or with/without `host|user|service:` prefix so flyout ids align with node ids.
    */
   isInitialEntity(entityId: string): boolean {
-    return this.initialEntityIds.find((entity) => entity.id === entityId)?.isOrigin ?? false;
+    const strip = (id: string) => id.replace(/^(user|host|service):/i, '');
+    const needle = strip(entityId);
+    return this.initialEntityIds.some(
+      (entity) =>
+        entity.isOrigin && (entity.id === entityId || strip(entity.id) === needle)
+    );
   }
 
   /**

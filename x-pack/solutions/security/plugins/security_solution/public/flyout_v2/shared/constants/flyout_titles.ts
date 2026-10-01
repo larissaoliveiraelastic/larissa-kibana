@@ -213,7 +213,7 @@ export const RESOLUTION_TITLE = i18n.translate(
 
 export const ENTITY_GRAPH_VIEW_TITLE = i18n.translate(
   'xpack.securitySolution.flyout.entityDetails.graphView.title',
-  { defaultMessage: 'Graph' }
+  { defaultMessage: 'Entity graph' }
 );
 
 export const ENTRA_INSIGHTS_TITLE = i18n.translate(

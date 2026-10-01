@@ -51,6 +51,8 @@ export interface EntityActionItem {
   onClick: () => void;
   testSubject: string;
   disabled?: boolean;
+  /** Tooltip override (e.g. why an action is disabled). Falls back to {@link label}. */
+  toolTipText?: string;
 }
 
 export interface EntityNodeViewModel
@@ -104,6 +106,10 @@ export interface LabelNodeViewModel
   ipClickHandler?: IpClickCallback;
   countryClickHandler?: CountryClickCallback;
   eventClickHandler?: EventClickCallback;
+  /** Cube hover action — toggles “Show related events” filter. */
+  relatedEventsClickHandler?: (e: React.MouseEvent<HTMLButtonElement>) => void;
+  /** When true, cube tooltip reads “Hide related events”. */
+  relatedEventsActive?: boolean;
 }
 
 export interface RelationshipNodeViewModel
@@ -111,6 +117,10 @@ export interface RelationshipNodeViewModel
     RelationshipNodeDataModel,
     BaseNodeDataViewModel {
   expandButtonClick?: ExpandButtonClickCallback;
+  /** Cube hover action — toggles “Show related events” filter. */
+  relatedEventsClickHandler?: (e: React.MouseEvent<HTMLButtonElement>) => void;
+  /** When true, cube tooltip reads “Hide related events”. */
+  relatedEventsActive?: boolean;
 }
 
 export type NodeViewModel =

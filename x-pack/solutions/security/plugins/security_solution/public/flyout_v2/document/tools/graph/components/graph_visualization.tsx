@@ -48,6 +48,34 @@ export const GRAPH_ID = 'graph-visualization' as const;
 
 const MAX_DOCUMENTS_TO_LOAD = 50;
 
+/** Map graph entity type / tag → typed flyout engine (host | user | service). */
+const resolveEntityEngineType = (
+  node: NodeViewModel,
+  entity?: { engine_type?: string; type?: string }
+): string | undefined => {
+  const candidates = [entity?.engine_type, entity?.type, 'tag' in node ? node.tag : undefined];
+  for (const raw of candidates) {
+    if (!raw) continue;
+    const normalized = String(raw).toLowerCase();
+    if (normalized === 'host' || normalized === 'user' || normalized === 'service') {
+      return normalized;
+    }
+  }
+  return undefined;
+};
+
+const resolveEntityDisplayName = (
+  node: NodeViewModel,
+  entity?: { name?: string },
+  fallbackId?: string
+): string | undefined => {
+  if (entity?.name) return entity.name;
+  if ('label' in node && typeof node.label === 'string' && node.label.length > 0) {
+    return node.label;
+  }
+  return fallbackId;
+};
+
 /**
  * Node-click callbacks. This component interprets the clicked node and routes it to the
  * appropriate callback; the consumer owns how each preview is opened (the flyout v2 system flyout,
@@ -65,13 +93,20 @@ interface GraphNodeCallbacks {
     engineType: string | undefined;
     entityId: string;
     entityName: string | undefined;
+    /** React Flow node id — used to keep the card selected while details are open. */
+    graphNodeId?: string;
   }) => void;
   /** Open a grouped-entities or grouped-events preview. */
   onShowGrouped: (
     params: Omit<
       GraphGroupedNodePreviewPanelProps,
       'scopeId' | 'showLoadingState' | 'onShowDocument' | 'onShowEntity'
-    >
+    > & {
+      /** React Flow node id for the group card selection state. */
+      graphNodeId?: string;
+      /** Side-panel header title, e.g. "3 GCP Compute Instances". */
+      groupTitle?: string;
+    }
   ) => void;
   /**
    * Open a network (IP) preview.
@@ -100,9 +135,21 @@ interface EntityGraphVisualizationProps extends GraphNodeCallbacks {
   scopeId: string;
   /** Entity Store v2 entity ID (`entity.id`) to center the graph on */
   entityId: string;
+  /** Display name (host/user/service) — matches graph node label when id ≠ name */
+  entityName?: string;
+  /**
+   * Flyout Entity risk (`calculated_score_norm`) for the origin node.
+   * Keeps expanded graph aligned with table + preview.
+   */
+  originRiskScore?: number | null;
 }
 
-export type GraphVisualizationProps = EventGraphVisualizationProps | EntityGraphVisualizationProps;
+export type GraphVisualizationProps = (EventGraphVisualizationProps | EntityGraphVisualizationProps) & {
+  /** Node ids kept selected while the entity details side panel is open. */
+  selectedNodeIds?: string[];
+  /** Clear details selection (pane click / close). */
+  onClearDetailsSelection?: () => void;
+};
 
 /**
  * Full-screen graph investigation view for use in left-panel flyout tabs.
@@ -111,7 +158,15 @@ export type GraphVisualizationProps = EventGraphVisualizationProps | EntityGraph
  * - 'entity': driven by an Entity Store entity ID (used in entity detail panels).
  */
 export const GraphVisualization: React.FC<GraphVisualizationProps> = memo((props) => {
-  const { scopeId, onShowDocument, onShowEntity, onShowGrouped, onShowNetwork } = props;
+  const {
+    scopeId,
+    onShowDocument,
+    onShowEntity,
+    onShowGrouped,
+    onShowNetwork,
+    selectedNodeIds,
+    onClearDetailsSelection,
+  } = props;
 
   const wrapperRef = useRef<HTMLDivElement>(null);
   const height = useFlyoutBodyAvailableHeight(wrapperRef);
@@ -159,10 +214,12 @@ export const GraphVisualization: React.FC<GraphVisualizationProps> = memo((props
       if ((docMode === 'single-event' || docMode === 'single-alert') && singleDocumentData) {
         onShowDocument(singleDocumentData.id, singleDocumentData.index, docMode === 'single-event');
       } else if (docMode === 'single-entity' && singleDocumentData && isEntityNodeEnriched(node)) {
+        // Prefer typed Host/User/Service flyout (more detailed) over Generic Entity.
         onShowEntity({
-          engineType: singleDocumentData.entity?.engine_type,
+          engineType: resolveEntityEngineType(node, singleDocumentData.entity),
           entityId: singleDocumentData.id,
-          entityName: singleDocumentData.entity?.name,
+          entityName: resolveEntityDisplayName(node, singleDocumentData.entity, singleDocumentData.id),
+          graphNodeId: node.id,
         });
       } else if (docMode === 'grouped-entities' && documentsData.length > 0) {
         const entityItems = documentsData
@@ -171,13 +228,48 @@ export const GraphVisualization: React.FC<GraphVisualizationProps> = memo((props
             (doc): doc is NodeDocumentDataModel & { entity: EntityDocumentDataModel } =>
               doc.entity !== undefined
           )
-          .map((doc) => ({
-            itemType: DOCUMENT_TYPE_ENTITY,
-            entity: doc.entity,
-            id: doc.id,
-            icon: node.icon,
-          }));
-        onShowGrouped({ docMode, entityItems, documentIds: [], dataViewId: undefined });
+          .map((doc) => {
+            const riskFromFields = doc.entity.sourceFields?.risk;
+            const risk =
+              typeof riskFromFields === 'number'
+                ? riskFromFields
+                : typeof riskFromFields === 'string'
+                ? Number(riskFromFields)
+                : undefined;
+            return {
+              itemType: DOCUMENT_TYPE_ENTITY,
+              entity: doc.entity,
+              id: doc.id,
+              // Member cards use entity-type icons (storage/user), not the group brand SVG.
+              icon:
+                doc.entity.engine_type === 'user' || doc.entity.type?.toLowerCase() === 'user'
+                  ? 'user'
+                  : doc.entity.engine_type === 'service' ||
+                    doc.entity.type?.toLowerCase() === 'service'
+                  ? 'package'
+                  : 'storage',
+              label: doc.entity.name,
+              risk: Number.isFinite(risk) ? risk : undefined,
+            };
+          });
+        const groupLabel =
+          'label' in node && typeof node.label === 'string' && node.label.length > 0
+            ? node.label
+            : undefined;
+        onShowGrouped({
+          docMode,
+          entityItems,
+          documentIds: [],
+          dataViewId: undefined,
+          graphNodeId: node.id,
+          groupTitle: groupLabel
+            ? `${entityItems.length} ${
+                entityItems.length === 1 || groupLabel.endsWith('s')
+                  ? groupLabel
+                  : `${groupLabel}s`
+              }`
+            : undefined,
+        });
       } else if (docMode === 'grouped-events' && documentsData.length > 0) {
         const documentIds = documentsData
           .slice(0, MAX_DOCUMENTS_TO_LOAD)
@@ -188,6 +280,7 @@ export const GraphVisualization: React.FC<GraphVisualizationProps> = memo((props
           documentIds,
           dataViewId: dataViewIndexPattern,
           entityItems: [],
+          graphNodeId: node.id,
         });
       } else {
         toasts.addDanger({
@@ -254,6 +347,8 @@ export const GraphVisualization: React.FC<GraphVisualizationProps> = memo((props
         <React.Suspense fallback={<EuiLoadingSpinner />}>
           <GraphInvestigationLazy
             scopeId={scopeId}
+            originRiskScore={props.mode === 'entity' ? props.originRiskScore : undefined}
+            originEntityName={props.mode === 'entity' ? props.entityName : undefined}
             initialState={
               props.mode === 'event'
                 ? {
@@ -277,9 +372,13 @@ export const GraphVisualization: React.FC<GraphVisualizationProps> = memo((props
             }
             showInvestigateInTimeline={hasTimelineAccess}
             showToggleSearch={true}
+            entityActionsMode="hover"
+            entityStyleMode="colored"
             onInvestigateInTimeline={openTimelineCallback}
             onOpenEventPreview={onOpenEventPreview}
             onOpenNetworkPreview={onShowNetwork}
+            selectedNodeIds={selectedNodeIds}
+            onPaneClick={onClearDetailsSelection}
           />
         </React.Suspense>
       )}

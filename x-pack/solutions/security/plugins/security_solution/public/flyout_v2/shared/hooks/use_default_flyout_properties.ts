@@ -20,10 +20,10 @@ export const useDefaultDocumentFlyoutProperties = (): OverlaySystemFlyoutOpenOpt
   const { euiTheme } = useEuiTheme();
 
   return useMemo(() => {
-    // Discover baseline (~384px) vs Graph preview floor:
-    // 2× card min (~120) + relationships trunk (72) + fan-out (28) + gaps/padding (~80) ≈ 420,
-    // plus flyout body padding → ~480.
-    const graphPreviewSafeMinWidth = euiTheme.base * 30;
+    // Graph preview floor so both cards keep "Hosts" + risk range visible:
+    // 2× card min (~208) + trunk (72) + fan-out (28) + gaps/padding (~96) ≈ 612,
+    // plus flyout chrome → ~640.
+    const graphPreviewSafeMinWidth = euiTheme.base * 40;
     return {
       maxWidth: euiTheme.breakpoint.xl,
       minWidth: Math.max(euiTheme.base * 24, graphPreviewSafeMinWidth),
@@ -43,4 +43,17 @@ export const defaultToolsFlyoutProperties: OverlaySystemFlyoutOpenOptions = {
   paddingSize: 'm',
   resizable: true,
   size: 'm',
+};
+
+/**
+ * Entity Graph tool flyout — wider than other tools so the full graph (cards +
+ * relationship corridor) fits without horizontal clipping.
+ */
+export const entityGraphToolsFlyoutProperties: OverlaySystemFlyoutOpenOptions = {
+  ownFocus: false,
+  paddingSize: 'm',
+  resizable: true,
+  size: 1040,
+  minWidth: 720,
+  maxWidth: 1400,
 };
