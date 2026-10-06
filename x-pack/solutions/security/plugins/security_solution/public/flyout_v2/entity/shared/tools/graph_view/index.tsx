@@ -32,6 +32,7 @@ import { i18n } from '@kbn/i18n';
 import { noop } from 'lodash/fp';
 import {
   GraphGroupedNodePreviewPanel,
+  GraphTopLeftFloatingPanel,
   type GraphGroupedNodePreviewPanelProps,
 } from '@kbn/cloud-security-posture-graph';
 import { FlowTargetSourceDest } from '../../../../../../common/search_strategy';
@@ -85,11 +86,6 @@ const closePanelLabel = i18n.translate(
   { defaultMessage: 'Close details' }
 );
 
-const backToGroupLabel = i18n.translate(
-  'xpack.securitySolution.flyoutV2.entity.graphView.detailsPanel.backToGroup',
-  { defaultMessage: 'Back to group' }
-);
-
 const entityDetailsTitle = i18n.translate(
   'xpack.securitySolution.flyoutV2.entity.graphView.detailsPanel.entityTitle',
   { defaultMessage: 'Entity details' }
@@ -115,6 +111,9 @@ const serviceDetailsTitle = i18n.translate(
   { defaultMessage: 'Service' }
 );
 
+/** Figma-style in-graph group listing (same shell as Keyboard shortcuts). */
+const IN_GRAPH_GROUP_PANEL_WIDTH = 360;
+
 const resolveTypedEngine = (
   engineType: string | undefined
 ): 'host' | 'user' | 'service' | 'generic' => {
@@ -127,26 +126,21 @@ const resolveTypedEngine = (
 
 type GroupedPanelParams = Omit<
   GraphGroupedNodePreviewPanelProps,
-  'scopeId' | 'showLoadingState' | 'onShowDocument' | 'onShowEntity'
+  'scopeId' | 'showLoadingState' | 'onShowDocument' | 'onShowEntity' | 'hidePanelTitle'
 >;
 
-type GroupSidePanelState = {
-  kind: 'group';
+type InGraphGroupState = {
   params: GroupedPanelParams;
   /** e.g. "3 GCP Compute Instances" */
   title?: string;
 };
 
-type SidePanelState =
-  | {
-      kind: 'entity';
-      engineType: string | undefined;
-      entityId: string;
-      entityName: string | undefined;
-      /** When drilled in from a group listing, restore this panel on Back. */
-      backToGroup?: GroupSidePanelState;
-    }
-  | GroupSidePanelState;
+type SidePanelState = {
+  kind: 'entity';
+  engineType: string | undefined;
+  entityId: string;
+  entityName: string | undefined;
+};
 
 export interface GraphViewProps {
   /** Entity Store v2 id (`entity.id`) to center the graph on. */
@@ -192,6 +186,9 @@ export const GraphView = memo(
     const defaultFlyoutProperties = useDefaultDocumentFlyoutProperties();
     const { openDocumentFlyoutFromIndexAsChild, openNetworkFlyoutAsChild } = useFlyoutApi();
     const [sidePanel, setSidePanel] = useState<SidePanelState | null>(null);
+    /** Entity-group listing — in-graph floating panel (Keyboard shortcuts pattern). */
+    const [inGraphGroup, setInGraphGroup] = useState<InGraphGroupState | null>(null);
+    const [reactFlowHost, setReactFlowHost] = useState<Element | null>(null);
     /** Graph flyout geometry — panel anchors to its left; flyout size is never changed here. */
     const [openLayout, setOpenLayout] = useState<OpenLayout | null>(null);
     const [panelEntered, setPanelEntered] = useState(false);
@@ -281,20 +278,11 @@ export const GraphView = memo(
           window.clearTimeout(closeTimeoutRef.current);
           closeTimeoutRef.current = null;
         }
-        setSidePanel((prev) => {
-          const backToGroup =
-            prev?.kind === 'group'
-              ? prev
-              : prev?.kind === 'entity'
-              ? prev.backToGroup
-              : undefined;
-          return {
-            kind: 'entity',
-            engineType: params.engineType,
-            entityId: params.entityId,
-            entityName: params.entityName,
-            backToGroup,
-          };
+        setSidePanel({
+          kind: 'entity',
+          engineType: params.engineType,
+          entityId: params.entityId,
+          entityName: params.entityName,
         });
         // Keep the group node selected when drilling in from the group list.
         if (params.graphNodeId) {
@@ -310,42 +298,42 @@ export const GraphView = memo(
       [measureFlyoutLayout]
     );
 
-    const goBackToGroup = useCallback(() => {
-      setSidePanel((prev) => {
-        if (prev?.kind === 'entity' && prev.backToGroup) {
-          return prev.backToGroup;
-        }
-        return prev;
-      });
-    }, []);
-
-    const openGroupedInSidePanel = useCallback(
+    const openGroupedInGraphPanel = useCallback(
       (params: GroupedPanelParams & { graphNodeId?: string; groupTitle?: string }) => {
-        if (closeTimeoutRef.current != null) {
-          window.clearTimeout(closeTimeoutRef.current);
-          closeTimeoutRef.current = null;
-        }
         const { graphNodeId, groupTitle, ...groupParams } = params;
         setSelectedGraphNodeId(graphNodeId ?? null);
-        setSidePanel({ kind: 'group', params: groupParams, title: groupTitle });
-        if (!openLayoutRef.current) {
-          const layout = measureFlyoutLayout();
-          openLayoutRef.current = layout;
-          setOpenLayout(layout);
-          setPanelEntered(false);
+        setInGraphGroup({ params: groupParams, title: groupTitle });
+        // Close entity details when switching to a (new) group listing.
+        setSidePanel(null);
+        setOpenLayout(null);
+        openLayoutRef.current = null;
+        setPanelEntered(false);
+        const host = rootRef.current?.querySelector('.react-flow') ?? null;
+        setReactFlowHost(host);
+        if (!host) {
+          window.requestAnimationFrame(() => {
+            setReactFlowHost(rootRef.current?.querySelector('.react-flow') ?? null);
+          });
         }
       },
-      [measureFlyoutLayout]
+      []
     );
 
-    /** Events/alerts groups still open as tool flyouts (not entity side-panel). */
+    const closeInGraphGroup = useCallback(() => {
+      setInGraphGroup(null);
+      // Keep node selection if entity details side panel is still open.
+      setSelectedGraphNodeId((prev) => (sidePanel ? prev : null));
+    }, [sidePanel]);
+
+    /** Events/alerts groups still open as tool flyouts; entity groups use in-graph panel. */
     const onShowGrouped = useCallback(
       (params: GroupedPanelParams & { graphNodeId?: string; groupTitle?: string }) => {
         if (params.docMode === 'grouped-entities') {
-          openGroupedInSidePanel(params);
+          openGroupedInGraphPanel(params);
           return;
         }
         setSelectedGraphNodeId(null);
+        setInGraphGroup(null);
         const { graphNodeId: _graphNodeId, groupTitle: _groupTitle, ...groupParams } = params;
         open(
           <GraphGroupedNodePreviewPanel
@@ -373,7 +361,7 @@ export const GraphView = memo(
         scopeId,
         onShowDocument,
         openEntityInSidePanel,
-        openGroupedInSidePanel,
+        openGroupedInGraphPanel,
         defaultFlyoutProperties,
         historyKey,
         open,
@@ -381,7 +369,6 @@ export const GraphView = memo(
     );
 
     const closeSidePanel = useCallback(() => {
-      setSelectedGraphNodeId(null);
       setPanelEntered(false);
       if (closeTimeoutRef.current != null) {
         window.clearTimeout(closeTimeoutRef.current);
@@ -391,15 +378,21 @@ export const GraphView = memo(
         setOpenLayout(null);
         openLayoutRef.current = null;
         closeTimeoutRef.current = null;
+        // Drop node selection only when the in-graph group listing is also gone.
+        setSelectedGraphNodeId((prev) => (inGraphGroup ? prev : null));
       }, PANEL_ENTER_MS);
-    }, []);
+    }, [inGraphGroup]);
 
     const clearDetailsSelection = useCallback(() => {
-      if (sidePanel == null && selectedGraphNodeId == null) {
+      if (sidePanel == null && inGraphGroup == null && selectedGraphNodeId == null) {
         return;
       }
-      closeSidePanel();
-    }, [sidePanel, selectedGraphNodeId, closeSidePanel]);
+      setInGraphGroup(null);
+      setSelectedGraphNodeId(null);
+      if (sidePanel) {
+        closeSidePanel();
+      }
+    }, [sidePanel, inGraphGroup, selectedGraphNodeId, closeSidePanel]);
 
     const selectedNodeIds = useMemo(
       () => (selectedGraphNodeId ? [selectedGraphNodeId] : undefined),
@@ -477,7 +470,6 @@ export const GraphView = memo(
 
     const sidePanelTitle = useMemo(() => {
       if (!sidePanel) return '';
-      if (sidePanel.kind === 'group') return sidePanel.title ?? groupDetailsTitle;
       const typed = resolveTypedEngine(sidePanel.engineType);
       const name = sidePanel.entityName;
       if (typed === 'host') return name ?? hostDetailsTitle;
@@ -487,7 +479,7 @@ export const GraphView = memo(
     }, [sidePanel]);
 
     const entityDetailsContent = useMemo(() => {
-      if (!sidePanel || sidePanel.kind !== 'entity') return null;
+      if (!sidePanel) return null;
       const { engineType, entityId: id, entityName: name } = sidePanel;
       switch (resolveTypedEngine(engineType)) {
         case 'host':
@@ -521,6 +513,31 @@ export const GraphView = memo(
           return <GenericEntity entityId={id} scopeId={scopeId} />;
       }
     }, [sidePanel, scopeId]);
+
+    const openEntityFromGroupList = useCallback(
+      (params: {
+        engineType: string | undefined;
+        entityId: string;
+        entityName: string | undefined;
+      }) => {
+        openEntityInSidePanel({
+          ...params,
+          // Keep the group node highlighted while drilling into a member.
+          graphNodeId: selectedGraphNodeId ?? undefined,
+        });
+      },
+      [openEntityInSidePanel, selectedGraphNodeId]
+    );
+
+    const ignoreGroupPanelOutsideClick = useCallback(
+      (target: EventTarget | null) => {
+        if (!(target instanceof Node)) return false;
+        return panelElRef.current?.contains(target) ?? false;
+      },
+      []
+    );
+
+    const inGraphGroupTitle = inGraphGroup?.title ?? groupDetailsTitle;
 
     const panelShellCss = css`
       box-sizing: border-box;
@@ -589,110 +606,88 @@ export const GraphView = memo(
           }}
         >
           <div css={panelCardCss}>
-            {sidePanel.kind === 'group' ? (
-              <>
-                <EuiFlexGroup
-                  alignItems="center"
-                  justifyContent="spaceBetween"
-                  gutterSize="s"
-                  responsive={false}
-                  css={panelHeaderCss}
-                >
-                  <EuiFlexItem grow={true} css={{ minWidth: 0 }}>
-                    <EuiTitle size="xs">
-                      <h3
-                        css={css`
-                          margin: 0;
-                          overflow: hidden;
-                          text-overflow: ellipsis;
-                          white-space: nowrap;
-                        `}
-                      >
-                        {sidePanelTitle}
-                      </h3>
-                    </EuiTitle>
-                  </EuiFlexItem>
-                  <EuiFlexItem grow={false}>
-                    <EuiButtonIcon
-                      iconType="cross"
-                      aria-label={closePanelLabel}
-                      color="text"
-                      size="xs"
-                      onClick={closeSidePanel}
-                      data-test-subj="graphEntityDetailsSidePanelClose"
-                    />
-                  </EuiFlexItem>
-                </EuiFlexGroup>
-                <div css={panelBodyCss}>
-                  <GraphGroupedNodePreviewPanel
-                    {...sidePanel.params}
-                    scopeId={scopeId}
-                    hidePanelTitle
-                    onShowDocument={onShowDocument}
-                    onShowEntity={openEntityInSidePanel}
-                  />
-                </div>
-              </>
-            ) : (
-              <div
+            <div
+              css={css`
+                ${panelBodyCss};
+                height: 100%;
+              `}
+            >
+              <EuiFlexGroup
+                alignItems="center"
+                justifyContent="spaceBetween"
+                gutterSize="s"
+                responsive={false}
                 css={css`
-                  ${panelBodyCss};
-                  height: 100%;
+                  ${panelHeaderCss};
+                  border-bottom: none;
+                  padding-bottom: ${euiTheme.size.xs};
                 `}
               >
-                <EuiFlexGroup
-                  alignItems="center"
-                  justifyContent="spaceBetween"
-                  gutterSize="s"
-                  responsive={false}
-                  css={css`
-                    ${panelHeaderCss};
-                    border-bottom: none;
-                    padding-bottom: ${euiTheme.size.xs};
-                  `}
-                >
-                  <EuiFlexItem grow={false}>
-                    {sidePanel.kind === 'entity' && sidePanel.backToGroup ? (
-                      <EuiButtonIcon
-                        iconType="arrowLeft"
-                        aria-label={backToGroupLabel}
-                        color="text"
-                        size="xs"
-                        onClick={goBackToGroup}
-                        data-test-subj="graphEntityDetailsSidePanelBack"
-                      />
-                    ) : (
-                      <span />
-                    )}
-                  </EuiFlexItem>
-                  <EuiFlexItem grow={false}>
-                    <EuiButtonIcon
-                      iconType="cross"
-                      aria-label={closePanelLabel}
-                      color="text"
-                      size="xs"
-                      onClick={closeSidePanel}
-                      data-test-subj="graphEntityDetailsSidePanelClose"
-                    />
-                  </EuiFlexItem>
-                </EuiFlexGroup>
-                <div
-                  css={css`
-                    flex: 1 1 auto;
-                    min-height: 0;
-                    overflow: auto;
-                  `}
-                >
-                  <Suspense fallback={<EuiLoadingSpinner size="m" />}>
-                    {entityDetailsContent}
-                  </Suspense>
-                </div>
+                <EuiFlexItem grow={true} css={{ minWidth: 0 }}>
+                  <EuiTitle size="xs">
+                    <h3
+                      css={css`
+                        margin: 0;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                        white-space: nowrap;
+                      `}
+                    >
+                      {sidePanelTitle}
+                    </h3>
+                  </EuiTitle>
+                </EuiFlexItem>
+                <EuiFlexItem grow={false}>
+                  <EuiButtonIcon
+                    iconType="cross"
+                    aria-label={closePanelLabel}
+                    color="text"
+                    size="xs"
+                    onClick={closeSidePanel}
+                    data-test-subj="graphEntityDetailsSidePanelClose"
+                  />
+                </EuiFlexItem>
+              </EuiFlexGroup>
+              <div
+                css={css`
+                  flex: 1 1 auto;
+                  min-height: 0;
+                  overflow: auto;
+                `}
+              >
+                <Suspense fallback={<EuiLoadingSpinner size="m" />}>
+                  {entityDetailsContent}
+                </Suspense>
               </div>
-            )}
+            </div>
           </div>
         </div>,
         document.body
       );
+
+    const inGraphGroupPanel = (
+      <GraphTopLeftFloatingPanel
+        isOpen={inGraphGroup != null}
+        onClose={closeInGraphGroup}
+        portalHost={reactFlowHost}
+        title={inGraphGroupTitle}
+        layout="divided"
+        width={IN_GRAPH_GROUP_PANEL_WIDTH}
+        data-test-subj="graphGroupedEntitiesFloatingPanel"
+        ignoreOutsideClick={ignoreGroupPanelOutsideClick}
+        body={
+          inGraphGroup ? (
+            <GraphGroupedNodePreviewPanel
+              {...inGraphGroup.params}
+              scopeId={scopeId}
+              hidePanelTitle
+              onShowDocument={onShowDocument}
+              onShowEntity={openEntityFromGroupList}
+            />
+          ) : null
+        }
+      />
+    );
 
     return (
       <div ref={rootRef} css={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -725,6 +720,7 @@ export const GraphView = memo(
             selectedNodeIds={selectedNodeIds}
             onClearDetailsSelection={clearDetailsSelection}
           />
+          {inGraphGroupPanel}
         </EuiFlyoutBody>
         {detailsPortal}
       </div>

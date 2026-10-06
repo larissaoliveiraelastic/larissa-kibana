@@ -17,6 +17,8 @@ import { useDateRangePickerContext } from './date_range_picker_context';
 import { durationToDisplayFullText } from './format';
 import { formatDateRange } from './utils';
 import { timeWindowButtonsTexts as translations } from './translations';
+import arrowLeftDot from './assets/arrow_left_dot.svg';
+import arrowRightDot from './assets/arrow_right_dot.svg';
 
 /** Configuration for time window buttons. */
 export interface TimeWindowButtonsConfig {
@@ -110,7 +112,7 @@ export function TimeWindowButtons({ config }: { config: TimeWindowButtonsConfig 
         id: BUTTON_ID_PREVIOUS,
         label: translations.previousLabel,
         title: '',
-        iconType: 'chevronSingleLeft',
+        iconType: arrowLeftDot,
         isDisabled: isDisabled || isInvalid || isWindowDurationZero,
         toolTipContent: isInvalid
           ? translations.cannotShiftInvalid
@@ -152,7 +154,7 @@ export function TimeWindowButtons({ config }: { config: TimeWindowButtonsConfig 
         id: BUTTON_ID_NEXT,
         label: translations.nextLabel,
         title: '',
-        iconType: 'chevronSingleRight',
+        iconType: arrowRightDot,
         isDisabled: isDisabled || isInvalid || isWindowDurationZero,
         toolTipContent: isInvalid
           ? translations.cannotShiftInvalid

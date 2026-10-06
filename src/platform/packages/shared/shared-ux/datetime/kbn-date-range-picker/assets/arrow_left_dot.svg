@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none">
+  <path
+    fill="currentColor"
+    fill-rule="evenodd"
+    clip-rule="evenodd"
+    d="M2.707 8 8.354 2.354l-.707-.708L1.292 8l6.355 6.354.707-.707L2.707 8Z"
+  />
+  <circle cx="12.75" cy="8" r="1.75" fill="currentColor" />
+</svg>

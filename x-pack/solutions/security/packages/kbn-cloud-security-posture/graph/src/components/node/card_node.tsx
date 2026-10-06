@@ -14,6 +14,7 @@ import {
   EuiIcon,
   EuiText,
   EuiToolTip,
+  euiShadowSmall,
   useEuiTheme,
 } from '@elastic/eui';
 import { css } from '@emotion/react';
@@ -1182,10 +1183,11 @@ export const CardNode = memo<NodeProps>((props: NodeProps) => {
 
   const cardWidth = cardWidthProp ?? CARD_NODE_WIDTH;
 
-  const { euiTheme } = useEuiTheme();
-  // Figma Graph viz (13969:1176) — X-small Level 2, keep elevation subtle on hover too.
+  const euiThemeContext = useEuiTheme();
+  const { euiTheme } = euiThemeContext;
+  // Default: Figma X-small Level 2. Hover: EUI shadow small.
   const defaultShadow = GRAPH_NODE_SHADOW;
-  const hoverShadow = GRAPH_NODE_SHADOW;
+  const hoverShadow = euiShadowSmall(euiThemeContext, { border: 'none' });
   const isMultipleNodesSelected = useMultipleNodesSelected();
   // No `⋯` on the entity card — action buttons appear above the card on hover only.
 

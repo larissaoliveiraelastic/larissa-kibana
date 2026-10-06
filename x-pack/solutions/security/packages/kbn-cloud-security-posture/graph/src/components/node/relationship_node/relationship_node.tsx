@@ -9,7 +9,7 @@ import React, { memo, useMemo } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import styled from '@emotion/styled';
 import { css } from '@emotion/react';
-import { useEuiTheme } from '@elastic/eui';
+import { useEuiTheme, euiShadowSmall } from '@elastic/eui';
 import { NODE_LABEL_WIDTH, getRelationshipColors } from '../styles';
 import {
   EventHoverActionsToolbar,
@@ -22,7 +22,7 @@ import {
   EVENT_PILL_HEIGHT,
   EVENT_PILL_LABEL_FONT_SIZE,
   EVENT_PILL_LABEL_LINE_HEIGHT,
-  EVENT_PILL_PADDING_LEFT,
+  EVENT_PILL_PADDING_RIGHT,
   EVENT_PILL_PADDING_X,
   EVENT_PILL_PADDING_Y,
   getEventPillBoxShadow,
@@ -43,7 +43,7 @@ export const TEST_SUBJ_RELATIONSHIP_GROUP_STACK = 'relationship-node-group-stack
 
 /**
  * Figma Event → Relationship (14980:17219):
- * Single: [Action.name] [cluster icon badge]
+ * Single: [cluster icon badge] [Action.name]
  * Group:  same + count on badge + stack layer
  * Active: Strong/Primary border
  */
@@ -107,8 +107,8 @@ const RelationshipPill = styled.div<{
   max-width: none;
   height: ${EVENT_PILL_HEIGHT}px;
   min-height: ${EVENT_PILL_HEIGHT}px;
-  padding: ${EVENT_PILL_PADDING_Y}px ${EVENT_PILL_PADDING_X}px ${EVENT_PILL_PADDING_Y}px
-    ${EVENT_PILL_PADDING_LEFT}px;
+  padding: ${EVENT_PILL_PADDING_Y}px ${EVENT_PILL_PADDING_RIGHT}px ${EVENT_PILL_PADDING_Y}px
+    ${EVENT_PILL_PADDING_X}px;
   border: none;
   border-radius: 999px;
   background: ${({ backgroundColor }) => backgroundColor};
@@ -151,7 +151,8 @@ export const RelationshipNode = memo<NodeProps>((props: NodeProps) => {
   const isGroup = showStackedShape(count);
   const isActive = Boolean(selected || dragging);
 
-  const { euiTheme } = useEuiTheme();
+  const euiThemeContext = useEuiTheme();
+  const { euiTheme } = euiThemeContext;
 
   const text = label ?? id;
 
@@ -163,6 +164,10 @@ export const RelationshipNode = memo<NodeProps>((props: NodeProps) => {
   const edgeThroughColor = euiTheme.colors.borderBaseProminent;
   const pillBorderColor = isActive ? activeBorderColor : borderColor;
   const pillBoxShadow = getEventPillBoxShadow(pillBorderColor, GRAPH_NODE_SHADOW);
+  const pillHoverShadow = getEventPillBoxShadow(
+    pillBorderColor,
+    euiShadowSmall(euiThemeContext, { border: 'none' })
+  );
 
   const labelTextCss = css`
     font-weight: ${euiTheme.font.weight.semiBold};
@@ -188,10 +193,10 @@ export const RelationshipNode = memo<NodeProps>((props: NodeProps) => {
             data-test-subj={GRAPH_RELATIONSHIP_NODE_SHAPE_ID}
             backgroundColor={backgroundColor}
             boxShadowCss={pillBoxShadow}
-            hoverShadowCss={pillBoxShadow}
+            hoverShadowCss={pillHoverShadow}
           >
-            {renderLabelText()}
             <RelationshipTypeBadge count={isGroup ? count : undefined} />
+            {renderLabelText()}
           </RelationshipPill>
           {isGroup && (
             <GroupStack

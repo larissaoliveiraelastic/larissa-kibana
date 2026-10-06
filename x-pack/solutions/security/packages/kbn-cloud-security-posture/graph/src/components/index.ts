@@ -16,6 +16,8 @@ export {
   GROUP_PREVIEW_BANNER,
 } from './graph_grouped_node_preview_panel/constants';
 export type { EntityOrEventItem } from './graph_grouped_node_preview_panel/components/grouped_item/types';
+export { GraphTopLeftFloatingPanel } from './controls/graph_top_left_floating_panel';
+export type { GraphTopLeftFloatingPanelProps } from './controls/graph_top_left_floating_panel';
 export { GRAPH_SCOPE_ID, NETWORK_PREVIEW_BANNER } from './constants';
 export { GraphPopover } from './popovers/primitives/graph_popover';
 export {

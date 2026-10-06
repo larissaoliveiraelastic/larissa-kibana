@@ -14,15 +14,18 @@ import type { DocumentAnalysisOutput } from './analyze_documents';
  * Figma Event / Relationship / Alert pill shell
  * @see https://www.figma.com/design/NKGsPiGKZ4rEwRVBnuctZ2/-9.5--Graph-viz---Component-Library?node-id=14980-17219
  *
- * Padding 10 (top/right/bottom) · left 14 (+4 for label breathing room) · height 40 · width hug · colors:
+ * Padding 10 (top/left/bottom) · right 14 (+4 so trailing label isn’t flush) · height 40 · width hug · colors:
  * - fill: Backgrounds/Light/Primary
  * - border: Borders/Base/Primary
  * - text: Text/Paragraph
+ * Layout: [type badge(s)] [label] — alert badge first when mixed.
  */
-/** Horizontal inset (right) from pill edge to badges. */
+/** Horizontal inset (left) from pill edge to badges. */
 export const EVENT_PILL_PADDING_X = 10;
-/** Left inset — 4px more than right so the label isn’t flush. */
-export const EVENT_PILL_PADDING_LEFT = EVENT_PILL_PADDING_X + 4;
+/** Right inset — 4px more than left so the trailing label isn’t flush. */
+export const EVENT_PILL_PADDING_RIGHT = EVENT_PILL_PADDING_X + 4;
+/** @deprecated Use EVENT_PILL_PADDING_RIGHT — label now sits after badges. */
+export const EVENT_PILL_PADDING_LEFT = EVENT_PILL_PADDING_RIGHT;
 export const EVENT_PILL_PADDING_Y = 10;
 /** Total pill height: padY + content (20) + padY. */
 export const EVENT_PILL_HEIGHT = EVENT_PILL_PADDING_Y * 2 + 20;
@@ -99,9 +102,12 @@ export const getEventPillColors = (
 
 /**
  * Pill chrome: outer 1px ring (padding 10 + height 40)
- * plus the graph X-small Level 2 elevation.
+ * plus elevation (default X-small; hover uses EUI shadow small).
  */
 export const getEventPillBoxShadow = (borderColor: string, elevationShadowCss: string): string => {
-  const elevation = elevationShadowCss.replace(/^box-shadow:\s*/, '').replace(/;$/, '');
+  const elevation = elevationShadowCss
+    .replace(/^[\s\n]*box-shadow:\s*/i, '')
+    .replace(/;[\s\n]*$/g, '')
+    .trim();
   return `box-shadow: 0 0 0 1px ${borderColor}, ${elevation};`;
 };

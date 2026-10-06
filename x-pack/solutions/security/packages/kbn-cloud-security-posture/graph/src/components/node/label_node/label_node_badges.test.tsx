@@ -78,6 +78,18 @@ describe('LabelNodeBadges', () => {
     expect(screen.getByTestId(TEST_SUBJ_ALERT_COUNT)).toBeInTheDocument();
   });
 
+  test('renders alert badge before event badge for mixed events and alerts', () => {
+    const analysis = analyzeDocuments({ uniqueEventsCount: 2, uniqueAlertsCount: 3 });
+
+    const { container } = render(<LabelNodeBadges analysis={analysis} />);
+    const icons = container.querySelectorAll(
+      `[data-test-subj="${TEST_SUBJ_ALERT_ICON}"], [data-test-subj="${TEST_SUBJ_EVENT_ICON}"]`
+    );
+
+    expect(icons[0]).toHaveAttribute('data-test-subj', TEST_SUBJ_ALERT_ICON);
+    expect(icons[1]).toHaveAttribute('data-test-subj', TEST_SUBJ_EVENT_ICON);
+  });
+
   test('renders event badge with counter and alert badge with icon and counter for multiple events and alerts', () => {
     const uniqueEventsCount = 2;
     const uniqueAlertsCount = 2;

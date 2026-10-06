@@ -60,7 +60,8 @@ export const GRAPH_PANEL_INSET = 16;
 /**
  * Figma Graph viz Component Library — Source Panel / entity card shadow
  * (node 13969:1176): X-small Level 2 — 0 1px 2px rgba(7, 16, 31, 0.06).
- * Use for entity cards, relationship labels, and event labels.
+ * Default elevation for entity cards, relationship labels, and event labels.
+ * Hover uses EUI `euiShadowSmall` (see card / pill nodes).
  */
 export const GRAPH_NODE_SHADOW = 'box-shadow: 0 1px 2px 0 rgba(7, 16, 31, 0.06);';
 

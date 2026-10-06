@@ -9,7 +9,7 @@ import React, { memo, useMemo } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { css } from '@emotion/react';
 import styled from '@emotion/styled';
-import { useEuiTheme } from '@elastic/eui';
+import { euiShadowSmall, useEuiTheme } from '@elastic/eui';
 import { NodeButton, NODE_LABEL_WIDTH } from '../styles';
 import {
   EventHoverActionsToolbar,
@@ -28,7 +28,7 @@ import {
   EVENT_PILL_HEIGHT,
   EVENT_PILL_LABEL_FONT_SIZE,
   EVENT_PILL_LABEL_LINE_HEIGHT,
-  EVENT_PILL_PADDING_LEFT,
+  EVENT_PILL_PADDING_RIGHT,
   EVENT_PILL_PADDING_X,
   EVENT_PILL_PADDING_Y,
   getEventPillBoxShadow,
@@ -126,9 +126,9 @@ const EventPill = styled.div<{
   max-width: none;
   height: ${EVENT_PILL_HEIGHT}px;
   min-height: ${EVENT_PILL_HEIGHT}px;
-  /* 10px top/right/bottom; 14px left (+4 for label). */
-  padding: ${EVENT_PILL_PADDING_Y}px ${EVENT_PILL_PADDING_X}px ${EVENT_PILL_PADDING_Y}px
-    ${EVENT_PILL_PADDING_LEFT}px;
+  /* 10px top/left/bottom; 14px right (+4 for trailing label). */
+  padding: ${EVENT_PILL_PADDING_Y}px ${EVENT_PILL_PADDING_RIGHT}px ${EVENT_PILL_PADDING_Y}px
+    ${EVENT_PILL_PADDING_X}px;
   border: none;
   border-radius: 999px;
   background: ${({ backgroundColor }) => backgroundColor};
@@ -172,7 +172,8 @@ export const LabelNode = memo<NodeProps>((props: NodeProps) => {
     highlightAsOrigin = false,
   } = props.data as LabelNodeViewModel;
 
-  const { euiTheme } = useEuiTheme();
+  const euiThemeContext = useEuiTheme();
+  const { euiTheme } = euiThemeContext;
   const zoom = useViewportZoom();
   const isMultipleNodesSelected = useMultipleNodesSelected();
   const showExpandButton = interactive && !isMultipleNodesSelected;
@@ -198,6 +199,10 @@ export const LabelNode = memo<NodeProps>((props: NodeProps) => {
   const pillTone = getEventPillTone(analysis);
   const pillColors = getEventPillColors(pillTone, isActive, euiTheme);
   const pillBoxShadow = getEventPillBoxShadow(pillColors.borderColor, GRAPH_NODE_SHADOW);
+  const pillHoverShadow = getEventPillBoxShadow(
+    pillColors.borderColor,
+    euiShadowSmall(euiThemeContext, { border: 'none' })
+  );
   const edgeThroughColor = euiTheme.colors.borderBaseProminent;
   const originOutlineBorderColor =
     pillTone === 'alert' ? euiTheme.colors.borderStrongDanger : euiTheme.colors.borderBasePlain;
@@ -229,14 +234,14 @@ export const LabelNode = memo<NodeProps>((props: NodeProps) => {
             data-test-subj={TEST_SUBJ_SHAPE}
             backgroundColor={pillColors.backgroundColor}
             boxShadowCss={pillBoxShadow}
-            hoverShadowCss={pillBoxShadow}
+            hoverShadowCss={pillHoverShadow}
           >
-            {renderLabelText()}
             <LabelNodeBadges
               analysis={analysis}
               isActive={isActive}
               onEventClick={eventClickHandler}
             />
+            {renderLabelText()}
           </EventPill>
           {isGroup && (
             <GroupStack
