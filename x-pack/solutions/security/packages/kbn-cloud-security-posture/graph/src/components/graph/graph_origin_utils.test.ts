@@ -6,9 +6,42 @@
  */
 
 import type { NodeViewModel } from '../types';
-import { isOriginEntityOrEventNode } from './graph_origin_utils';
+import { isOriginEntityNode, isOriginEntityOrEventNode } from './graph_origin_utils';
 
 describe('graph_origin_utils', () => {
+  describe('isOriginEntityNode', () => {
+    it('returns true only for origin entity nodes', () => {
+      expect(
+        isOriginEntityNode({
+          id: 'entity-1',
+          shape: 'ellipse',
+          color: 'primary',
+          isOrigin: true,
+        } as NodeViewModel)
+      ).toBe(true);
+    });
+
+    it('returns false for origin event/alert labels', () => {
+      expect(
+        isOriginEntityNode({
+          id: 'event-1',
+          shape: 'label',
+          color: 'primary',
+          isOrigin: true,
+        } as NodeViewModel)
+      ).toBe(false);
+
+      expect(
+        isOriginEntityNode({
+          id: 'alert-1',
+          shape: 'label',
+          color: 'danger',
+          isOriginAlert: true,
+        } as NodeViewModel)
+      ).toBe(false);
+    });
+  });
+
   describe('isOriginEntityOrEventNode', () => {
     it('returns true for origin entity nodes', () => {
       const node = {

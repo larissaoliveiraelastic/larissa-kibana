@@ -12,7 +12,8 @@ import type { NodeShape } from '@kbn/cloud-security-posture-common/types/graph/l
  *
  * Entity shapes render as edge-handle cards (`CardNode`), so the handle already sits on
  * the card border — no inset (otherwise the arrow tip is buried under the opaque card).
- * Label / relationship pills keep a small inset for their rounded edges.
+ * Label / relationship pills: no inset — edges stop at the corridor handle and the
+ * in-pill through-line bridges under the capsule (avoids blue invading the fill).
  */
 export function getShapeHandlePosition(shape?: NodeShape) {
   switch (shape) {
@@ -24,7 +25,7 @@ export function getShapeHandlePosition(shape?: NodeShape) {
       return 0;
     case 'label':
     case 'relationship':
-      return 3;
+      return 0;
     case 'group':
       return 0;
     default:

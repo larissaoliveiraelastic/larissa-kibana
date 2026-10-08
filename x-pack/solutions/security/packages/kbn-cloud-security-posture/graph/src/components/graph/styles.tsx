@@ -7,7 +7,7 @@
 
 import React from 'react';
 import { Global, css } from '@emotion/react';
-import { GRAPH_NON_ORIGIN_NODE_OPACITY } from './graph_origin_utils';
+import { GRAPH_HOVER_DIM_OPACITY } from './graph_origin_utils';
 import { GRAPH_SEARCH_NON_MATCH_NODE_OPACITY } from './graph_search_utils';
 import { GRAPH_TOOLTIP_BORDER_RADIUS, GRAPH_TOOLTIP_TEXT_COLOR } from '../constants';
 
@@ -49,30 +49,7 @@ export const GlobalGraphStyles = () => {
           display: none;
         }
 
-        .react-flow.graph-highlight-origins-only .react-flow__node:not(.graph-origin-node) {
-          transition: opacity 0.2s ease;
-        }
-
-        .react-flow.graph-highlight-origins-only
-          .react-flow__node:not(.graph-origin-node):not(:hover):not(.selected) {
-          opacity: ${GRAPH_NON_ORIGIN_NODE_OPACITY};
-        }
-
-        .react-flow.graph-highlight-origins-only .react-flow__edge:not(.graph-origin-edge) {
-          transition: opacity 0.2s ease;
-          opacity: ${GRAPH_NON_ORIGIN_NODE_OPACITY};
-        }
-
-        .react-flow.graph-highlight-origins-only .react-flow__edge.graph-origin-edge .react-flow__edge-path,
-        .react-flow.graph-highlight-origins-only .graph-origin-edge-path {
-          animation: graph-origin-edge-dash 0.9s linear infinite;
-        }
-
-        @keyframes graph-origin-edge-dash {
-          to {
-            stroke-dashoffset: -20;
-          }
-        }
+        /* Highlight starting point: ring on origin only — no graph-wide opacity. */
 
         .react-flow.graph-in-page-search-active
           .react-flow__node:not(.graph-search-match):not(:hover):not(.selected) {
@@ -94,12 +71,12 @@ export const GlobalGraphStyles = () => {
         /* Test B / hover actions: dim siblings only while an entity is hovered */
         .react-flow.graph-entity-actions-hover .react-flow__node:not(.graph-actions-hover-active) {
           transition: opacity 0.15s ease;
-          opacity: ${GRAPH_NON_ORIGIN_NODE_OPACITY};
+          opacity: ${GRAPH_HOVER_DIM_OPACITY};
         }
 
         .react-flow.graph-entity-actions-hover .react-flow__edge {
           transition: opacity 0.15s ease;
-          opacity: ${GRAPH_NON_ORIGIN_NODE_OPACITY};
+          opacity: ${GRAPH_HOVER_DIM_OPACITY};
         }
 
         /* Graph tooltips — Figma 12px radius + Text/Paragraph (dark), not Ghost white. */

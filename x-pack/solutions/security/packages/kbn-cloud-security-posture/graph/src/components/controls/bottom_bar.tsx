@@ -36,7 +36,7 @@ import type { NodeViewModel } from '../types';
 import { hasActiveEntityFilters } from './graph_entity_filters';
 import { useGraphSearchContext } from './graph_search_context';
 import { GraphNotificationBadge } from '../graph_notification_badge';
-import { isOriginEntityOrEventNode } from '../graph/graph_origin_utils';
+import { isOriginEntityNode } from '../graph/graph_origin_utils';
 import { DISPLAY_STARTING_POINT_TOUR_STORAGE_KEY } from '../../common/constants';
 import {
   GRAPH_BOTTOM_BAR_APPLY_FILTERS_ID,
@@ -75,7 +75,7 @@ const displayStartingPointTourContent = i18n.translate(
   'securitySolutionPackages.csp.graph.controls.bottomBar.displayStartingPoint.tour.content',
   {
     defaultMessage:
-      'The dashed outline shows the entity or event you opened this graph from. Change this anytime in Display.',
+      'The solid outline marks the entity you opened this graph from. Change this anytime in Display.',
   }
 );
 
@@ -196,7 +196,7 @@ export const BottomBar = ({
     return count;
   }, [entityFilters]);
 
-  const hasOriginNodes = useMemo(() => nodes.some(isOriginEntityOrEventNode), [nodes]);
+  const hasOriginNodes = useMemo(() => nodes.some(isOriginEntityNode), [nodes]);
 
   const dismissDisplayTour = useCallback(() => {
     setIsDisplayTourOpen(false);

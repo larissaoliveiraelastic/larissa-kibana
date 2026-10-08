@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-import React, { memo, useMemo } from 'react';
+import React, { memo, useCallback, useMemo } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import styled from '@emotion/styled';
 import { css } from '@emotion/react';
@@ -37,6 +37,7 @@ import {
 } from '../../test_ids';
 import { GRAPH_NODE_SHADOW } from '../../constants';
 import { showStackedShape } from '../../utils';
+import { useGraphNodeHoverFocus } from '../use_graph_node_hover_focus';
 
 export const TEST_SUBJ_RELATIONSHIP_EXPAND_BTN = TEST_SUBJ_PILL_EXPAND_BTN;
 export const TEST_SUBJ_RELATIONSHIP_GROUP_STACK = 'relationship-node-group-stack';
@@ -58,12 +59,16 @@ const RelationshipNodeContainer = styled.div`
   min-width: ${NODE_LABEL_WIDTH}px;
 `;
 
-const EdgeThroughLine = styled.div<{ $color: string }>`
+/**
+ * Full corridor bridge (handle → handle). Sits behind the opaque pill so the
+ * stroke stays continuous without painting over the capsule fill.
+ */
+const EdgeThroughLine = styled.div<{ $color: string; $thickness?: number }>`
   position: absolute;
   left: 0;
   right: 0;
   top: ${EVENT_PILL_HEIGHT / 2}px;
-  height: 1px;
+  height: ${({ $thickness = 1 }) => $thickness}px;
   transform: translateY(-50%);
   background: ${({ $color }) => $color};
   z-index: 0;
@@ -79,6 +84,7 @@ const PillShell = styled.div`
   justify-content: center;
   width: max-content;
   max-width: none;
+  isolation: isolate;
 `;
 
 /** Hug the pill width so the group stack matches the capsule, not the full corridor. */
@@ -112,6 +118,7 @@ const RelationshipPill = styled.div<{
   border: none;
   border-radius: 999px;
   background: ${({ backgroundColor }) => backgroundColor};
+  background-clip: padding-box;
   white-space: nowrap;
   ${({ boxShadowCss }) => boxShadowCss}
   transition: box-shadow 0.2s ease;
@@ -144,12 +151,25 @@ export const RelationshipNode = memo<NodeProps>((props: NodeProps) => {
     relatedEventsClickHandler,
     relatedEventsActive,
     count,
+    isOnOriginHighlightPath = false,
   } = props.data as RelationshipNodeViewModel & { count?: number };
 
   const isMultipleNodesSelected = useMultipleNodesSelected();
   const showExpandButton = interactive && !isMultipleNodesSelected;
   const isGroup = showStackedShape(count);
   const isActive = Boolean(selected || dragging);
+  const { containerRef, setNodeHoverFocus } = useGraphNodeHoverFocus();
+
+  const onHoverOpen = useCallback(() => {
+    if (!interactive) {
+      return;
+    }
+    setNodeHoverFocus(true);
+  }, [interactive, setNodeHoverFocus]);
+
+  const onHoverLeave = useCallback(() => {
+    setNodeHoverFocus(false);
+  }, [setNodeHoverFocus]);
 
   const euiThemeContext = useEuiTheme();
   const { euiTheme } = euiThemeContext;
@@ -161,7 +181,10 @@ export const RelationshipNode = memo<NodeProps>((props: NodeProps) => {
     [euiTheme]
   );
   const activeBorderColor = euiTheme.colors.borderStrongPrimary;
-  const edgeThroughColor = euiTheme.colors.borderBaseProminent;
+  const edgeThroughColor = isOnOriginHighlightPath
+    ? euiTheme.colors.primary
+    : euiTheme.colors.borderBaseProminent;
+  const edgeThroughThickness = isOnOriginHighlightPath ? 1.5 : 1;
   const pillBorderColor = isActive ? activeBorderColor : borderColor;
   const pillBoxShadow = getEventPillBoxShadow(pillBorderColor, GRAPH_NODE_SHADOW);
   const pillHoverShadow = getEventPillBoxShadow(
@@ -185,8 +208,17 @@ export const RelationshipNode = memo<NodeProps>((props: NodeProps) => {
   );
 
   return (
-    <RelationshipNodeContainer data-test-subj={GRAPH_RELATIONSHIP_NODE_ID}>
-      <EdgeThroughLine $color={edgeThroughColor} aria-hidden={true} />
+    <RelationshipNodeContainer
+      ref={containerRef as React.Ref<HTMLDivElement>}
+      data-test-subj={GRAPH_RELATIONSHIP_NODE_ID}
+      onMouseEnter={onHoverOpen}
+      onMouseLeave={onHoverLeave}
+    >
+      <EdgeThroughLine
+        $color={edgeThroughColor}
+        $thickness={edgeThroughThickness}
+        aria-hidden={true}
+      />
       <PillShell>
         <PillColumn>
           <RelationshipPill

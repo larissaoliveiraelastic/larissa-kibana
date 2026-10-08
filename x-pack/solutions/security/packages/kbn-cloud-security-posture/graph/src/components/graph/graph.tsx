@@ -61,7 +61,7 @@ import { ZoomNodeInternalsSync } from '../zoom/zoom_node_internals_sync';
 import { GraphSelectionHandlers } from './graph_selection_handlers';
 import { useGraphInteractionKeyboardShortcuts } from '../../hooks/use_graph_interaction_keyboard_shortcuts';
 import { GraphFullscreenContext } from './graph_fullscreen_context';
-import { GRAPH_ORIGIN_NODE_CLASS, isOriginEntityOrEventNode } from './graph_origin_utils';
+import { GRAPH_ORIGIN_NODE_CLASS, isOriginEntityNode } from './graph_origin_utils';
 import { GraphSearchProvider } from '../controls/graph_search_context';
 import { GraphSearchEffects, type GraphSearchFlowClasses } from './graph_search_effects';
 import {
@@ -117,7 +117,7 @@ export interface GraphProps extends CommonProps {
    */
   onCenterGraphAfterRefresh?: (newNodes: NodeViewModel[]) => 'fit-view' | string[] | void;
   /**
-   * When true, origin entities and events are outlined with a dashed border.
+   * When true, the origin entity gets a solid primary ring (events/alerts untouched; no dim).
    */
   highlightOriginsOnly?: boolean;
   /**
@@ -742,11 +742,12 @@ const processGraph = (
   const initialNodes = nodesModel.map((nodeData) => {
     nodesById[nodeData.id] = nodeData;
 
+    // Ring only on the starting entity — never on events/alerts; no opacity elsewhere.
+    const isOriginEntity = isOriginEntityNode(nodeData);
+
     const classNames = [
       interactive ? undefined : 'non-interactive',
-      highlightOriginsOnly && isOriginEntityOrEventNode(nodeData)
-        ? GRAPH_ORIGIN_NODE_CLASS
-        : undefined,
+      highlightOriginsOnly && isOriginEntity ? GRAPH_ORIGIN_NODE_CLASS : undefined,
     ].filter(Boolean);
 
     const node: Node<NodeViewModel> = {
@@ -755,7 +756,8 @@ const processGraph = (
       data: {
         ...nodeData,
         interactive,
-        highlightAsOrigin: highlightOriginsOnly && isOriginEntityOrEventNode(nodeData),
+        highlightAsOrigin: highlightOriginsOnly && isOriginEntity,
+        isOnOriginHighlightPath: highlightOriginsOnly && isOriginEntity,
       },
       position: { x: 0, y: 0 }, // Default position, should be updated later
       className: classNames.length > 0 ? classNames.join(' ') : undefined,

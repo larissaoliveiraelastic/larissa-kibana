@@ -5,18 +5,11 @@
  * 2.0.
  */
 
-import React, { memo, useCallback, useEffect, useState } from 'react';
+import React, { memo, useState } from 'react';
 import { EuiButtonIcon, EuiToolTip, useEuiTheme } from '@elastic/eui';
 import { css, keyframes } from '@emotion/react';
-import { i18n } from '@kbn/i18n';
 import type { EntityActionItem } from '../types';
-import { ApplyFiltersPopover } from '../controls/apply_filters_popover';
-import { useGraphFiltersContext } from '../graph/graph_filters_context';
 import { GRAPH_ACTION_BUTTON_BORDER_RADIUS } from '../constants';
-import {
-  GRAPH_ENTITY_HOVER_METADATA_FILTERS_ID,
-  GRAPH_NODE_POPOVER_SHOW_ENTITY_DETAILS_ITEM_ID,
-} from '../test_ids';
 
 export const GRAPH_ENTITY_HOVER_ACTIONS_TOOLBAR_ID = 'cloudSecurityGraphEntityHoverActionsToolbar';
 
@@ -43,61 +36,25 @@ const hoverActionsOut = keyframes`
   }
 `;
 
-const entityMetadataShortcutLabel = i18n.translate(
-  'securitySolutionPackages.csp.graph.entityHover.singleNodeMetadata',
-  { defaultMessage: 'Single node metadata' }
-);
-
 interface EntityHoverActionsToolbarProps {
   getItems: () => EntityActionItem[];
   isExiting?: boolean;
-  /** Keep entity hover chrome open while the metadata popover portal is active. */
-  onMetadataPopoverOpenChange?: (isOpen: boolean) => void;
-  /**
-   * Entity-metadata (layers) shortcut — single entities only.
-   * Group cards never expose entity metadata.
-   */
-  showMetadataShortcut?: boolean;
 }
 
 /**
  * Figma Action Menu (node 14282:3835): icon row above the entity on hover.
- * Uses the same actions/toggles as the entity expand popover, plus a Display
- * (layers) shortcut that opens only the Entity Metadata filter section
- * (single entities only).
+ * Uses the same actions/toggles as the entity expand popover.
+ * Display / entity-metadata lives in the bottom Display control only.
  * @see https://www.figma.com/design/NKGsPiGKZ4rEwRVBnuctZ2/branch/1LKHFvfb4x85b5VjpLKYjN/-9.5--Graph-viz---Component-Library?node-id=14282-3835
  */
 export const EntityHoverActionsToolbar = memo<EntityHoverActionsToolbarProps>(
-  ({
-    getItems,
-    isExiting = false,
-    onMetadataPopoverOpenChange,
-    showMetadataShortcut: showMetadataShortcutProp = true,
-  }) => {
+  ({ getItems, isExiting = false }) => {
     const { euiTheme } = useEuiTheme();
     // Bump after a toggle so Show/Hide labels refresh while the toolbar stays open.
     const [version, setVersion] = useState(0);
-    const [isMetadataOpen, setIsMetadataOpen] = useState(false);
-    const graphFilters = useGraphFiltersContext();
     const items = getItems();
-    const showMetadataShortcut = showMetadataShortcutProp && graphFilters != null;
 
-    useEffect(() => {
-      onMetadataPopoverOpenChange?.(isMetadataOpen);
-    }, [isMetadataOpen, onMetadataPopoverOpenChange]);
-
-    useEffect(
-      () => () => {
-        onMetadataPopoverOpenChange?.(false);
-      },
-      [onMetadataPopoverOpenChange]
-    );
-
-    const closeMetadataPopover = useCallback(() => {
-      setIsMetadataOpen(false);
-    }, []);
-
-    if (items.length === 0 && !showMetadataShortcut) {
+    if (items.length === 0) {
       return null;
     }
 
@@ -131,14 +88,6 @@ export const EntityHoverActionsToolbar = memo<EntityHoverActionsToolbarProps>(
       }
     `;
 
-    const entityDetailsIndex = items.findIndex(
-      (item) => item.testSubject === GRAPH_NODE_POPOVER_SHOW_ENTITY_DETAILS_ITEM_ID
-    );
-    const itemsBeforeDetails =
-      entityDetailsIndex >= 0 ? items.slice(0, entityDetailsIndex) : items;
-    const itemsAfterDetails =
-      entityDetailsIndex >= 0 ? items.slice(entityDetailsIndex) : [];
-
     const renderActionItem = (item: EntityActionItem) => (
       <EuiToolTip
         key={item.testSubject}
@@ -166,33 +115,6 @@ export const EntityHoverActionsToolbar = memo<EntityHoverActionsToolbarProps>(
       </EuiToolTip>
     );
 
-    const metadataShortcut =
-      showMetadataShortcut && graphFilters ? (
-        <ApplyFiltersPopover
-          isOpen={isMetadataOpen}
-          onClose={closeMetadataPopover}
-          filtersState={graphFilters.filtersState}
-          onFiltersChange={graphFilters.onFiltersChange}
-          variant="nodeMetadata"
-          anchorPosition="downCenter"
-        >
-          <EuiToolTip content={entityMetadataShortcutLabel} position="top">
-            <EuiButtonIcon
-              iconType="layers"
-              iconSize="m"
-              aria-label={entityMetadataShortcutLabel}
-              data-test-subj={GRAPH_ENTITY_HOVER_METADATA_FILTERS_ID}
-              color={isMetadataOpen ? 'primary' : 'text'}
-              display="empty"
-              size="s"
-              css={iconButtonCss}
-              style={{ borderRadius: GRAPH_ACTION_BUTTON_BORDER_RADIUS }}
-              onClick={() => setIsMetadataOpen((open) => !open)}
-            />
-          </EuiToolTip>
-        </ApplyFiltersPopover>
-      ) : null;
-
     return (
       <div
         key={version}
@@ -217,9 +139,7 @@ export const EntityHoverActionsToolbar = memo<EntityHoverActionsToolbarProps>(
         onClick={(e) => e.stopPropagation()}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        {itemsBeforeDetails.map(renderActionItem)}
-        {metadataShortcut}
-        {itemsAfterDetails.map(renderActionItem)}
+        {items.map(renderActionItem)}
       </div>
     );
   }

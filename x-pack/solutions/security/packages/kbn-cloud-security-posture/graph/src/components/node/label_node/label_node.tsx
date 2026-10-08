@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-import React, { memo, useMemo } from 'react';
+import React, { memo, useCallback, useMemo } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { css } from '@emotion/react';
 import styled from '@emotion/styled';
@@ -37,6 +37,7 @@ import {
   pillHandleStyle,
 } from './event_pill_styles';
 import { OriginNodeOutline } from '../origin_node_outline';
+import { useGraphNodeHoverFocus } from '../use_graph_node_hover_focus';
 
 export const TEST_SUBJ_SHAPE = 'label-node-shape';
 export const TEST_SUBJ_EXPAND_BTN = TEST_SUBJ_PILL_EXPAND_BTN;
@@ -64,12 +65,16 @@ const LabelNodeContainer = styled.div`
   min-width: ${NODE_LABEL_WIDTH}px;
 `;
 
-const EdgeThroughLine = styled.div<{ $color: string }>`
+/**
+ * Full corridor bridge (handle → handle). Sits behind the opaque pill so the
+ * stroke stays continuous without painting over the capsule fill.
+ */
+const EdgeThroughLine = styled.div<{ $color: string; $thickness?: number }>`
   position: absolute;
   left: 0;
   right: 0;
   top: ${EVENT_PILL_HEIGHT / 2}px;
-  height: 1px;
+  height: ${({ $thickness = 1 }) => $thickness}px;
   transform: translateY(-50%);
   background: ${({ $color }) => $color};
   z-index: 0;
@@ -85,6 +90,8 @@ const PillShell = styled.div`
   justify-content: center;
   width: max-content;
   max-width: none;
+  /* Keep the pill fill fully opaque so the through-line cannot show through. */
+  isolation: isolate;
 `;
 
 /** Hug the pill width so the group stack matches the capsule, not the full corridor. */
@@ -132,6 +139,7 @@ const EventPill = styled.div<{
   border: none;
   border-radius: 999px;
   background: ${({ backgroundColor }) => backgroundColor};
+  background-clip: padding-box;
   white-space: nowrap;
   ${({ boxShadowCss }) => boxShadowCss}
   transition: box-shadow 0.2s ease;
@@ -170,6 +178,7 @@ export const LabelNode = memo<NodeProps>((props: NodeProps) => {
     relatedEventsClickHandler,
     relatedEventsActive,
     highlightAsOrigin = false,
+    isOnOriginHighlightPath = false,
   } = props.data as LabelNodeViewModel;
 
   const euiThemeContext = useEuiTheme();
@@ -177,6 +186,18 @@ export const LabelNode = memo<NodeProps>((props: NodeProps) => {
   const zoom = useViewportZoom();
   const isMultipleNodesSelected = useMultipleNodesSelected();
   const showExpandButton = interactive && !isMultipleNodesSelected;
+  const { containerRef, setNodeHoverFocus } = useGraphNodeHoverFocus();
+
+  const onHoverOpen = useCallback(() => {
+    if (!interactive) {
+      return;
+    }
+    setNodeHoverFocus(true);
+  }, [interactive, setNodeHoverFocus]);
+
+  const onHoverLeave = useCallback(() => {
+    setNodeHoverFocus(false);
+  }, [setNodeHoverFocus]);
 
   const text = label ?? id;
   const isActive = Boolean(selected || dragging);
@@ -203,9 +224,13 @@ export const LabelNode = memo<NodeProps>((props: NodeProps) => {
     pillColors.borderColor,
     euiShadowSmall(euiThemeContext, { border: 'none' })
   );
-  const edgeThroughColor = euiTheme.colors.borderBaseProminent;
-  const originOutlineBorderColor =
-    pillTone === 'alert' ? euiTheme.colors.borderStrongDanger : euiTheme.colors.borderBasePlain;
+  const useOriginPathBlue = highlightAsOrigin || isOnOriginHighlightPath;
+  const edgeThroughColor = useOriginPathBlue
+    ? euiTheme.colors.primary
+    : euiTheme.colors.borderBaseProminent;
+  const edgeThroughThickness = useOriginPathBlue ? 1.5 : 1;
+  // Origin ring matches path edges — primary blue (alerts keep danger for the pill, not the ring).
+  const originOutlineBorderColor = euiTheme.colors.primary;
 
   const labelTextCss = css`
     font-size: ${EVENT_PILL_LABEL_FONT_SIZE}px;
@@ -223,8 +248,17 @@ export const LabelNode = memo<NodeProps>((props: NodeProps) => {
   );
 
   return (
-    <LabelNodeContainer data-test-subj={GRAPH_LABEL_NODE_ID}>
-      <EdgeThroughLine $color={edgeThroughColor} aria-hidden={true} />
+    <LabelNodeContainer
+      ref={containerRef as React.Ref<HTMLDivElement>}
+      data-test-subj={GRAPH_LABEL_NODE_ID}
+      onMouseEnter={onHoverOpen}
+      onMouseLeave={onHoverLeave}
+    >
+      <EdgeThroughLine
+        $color={edgeThroughColor}
+        $thickness={edgeThroughThickness}
+        aria-hidden={true}
+      />
       <PillShell>
         {highlightAsOrigin && (
           <OriginNodeOutline borderColor={originOutlineBorderColor} borderRadius="999px" />

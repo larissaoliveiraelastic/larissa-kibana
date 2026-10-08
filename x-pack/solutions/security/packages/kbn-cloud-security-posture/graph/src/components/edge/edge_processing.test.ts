@@ -51,11 +51,8 @@ describe('edge_processing', () => {
   });
 
   describe('getGraphEdgeRenderColor', () => {
-    it('returns danger when edge color is danger', () => {
-      expect(getGraphEdgeRenderColor({ color: 'danger' })).toBe('danger');
-    });
-
-    it('returns danger when connecting to a danger label node', () => {
+    it('keeps edges gray by default, including alert-adjacent edges', () => {
+      expect(getGraphEdgeRenderColor({ color: 'danger' })).toBe('subdued');
       expect(
         getGraphEdgeRenderColor({
           color: 'primary',
@@ -63,10 +60,7 @@ describe('edge_processing', () => {
           targetShape: 'label',
           targetColor: 'danger',
         })
-      ).toBe('danger');
-    });
-
-    it('returns danger when connecting from a danger label node', () => {
+      ).toBe('subdued');
       expect(
         getGraphEdgeRenderColor({
           color: 'subdued',
@@ -74,17 +68,13 @@ describe('edge_processing', () => {
           sourceColor: 'danger',
           targetShape: 'hexagon',
         })
-      ).toBe('danger');
+      ).toBe('subdued');
     });
 
-    it('returns subdued for non-alert edges', () => {
-      expect(getGraphEdgeRenderColor({ color: 'primary' })).toBe('subdued');
+    it('keeps edges gray while highlighting starting point (ring-only highlight)', () => {
       expect(
         getGraphEdgeRenderColor({
-          color: 'primary',
-          sourceShape: 'hexagon',
-          targetShape: 'label',
-          targetColor: 'primary',
+          color: 'subdued',
         })
       ).toBe('subdued');
     });

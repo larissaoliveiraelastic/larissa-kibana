@@ -16,8 +16,9 @@ const getArrowPoints = (width: number, height: number): string => {
 const ArrowMarker = ({
   id,
   color,
-  width = 9,
-  height = 6,
+  // +0.5px vs prior 9×6 so tips read a touch heavier on the canvas.
+  width = 9.5,
+  height = 6.5,
 }: {
   id: string;
   color: string;

@@ -41,6 +41,7 @@ import {
   GRAPH_ENTITY_HOVER_ACTIONS_TOOLBAR_ID,
 } from './entity_hover_actions_toolbar';
 import { GRAPH_SIMPLIFIED_ACTIONS_TRIGGER_ID, SimplifiedActionsTrigger } from './simplified_actions_trigger';
+import { useGraphNodeHoverFocus } from './use_graph_node_hover_focus';
 import {
   GRAPH_ENTITY_NODE_ID,
   GRAPH_ENTITY_NODE_HOVER_SHAPE_ID,
@@ -907,7 +908,6 @@ const SimplifiedCard = ({
       <EntityHoverActionsToolbar
         getItems={getHoverActionItems}
         isExiting={hoverToolbarExiting}
-        showMetadataShortcut={!isGroup}
       />
     )}
     <SimplifiedCardContainer>
@@ -1048,7 +1048,6 @@ const CompactColoredCard = ({
         <EntityHoverActionsToolbar
           getItems={getHoverActionItems}
           isExiting={hoverToolbarExiting}
-          showMetadataShortcut={!isGroup}
         />
       )}
       {highlightAsOrigin && (
@@ -1191,41 +1190,20 @@ export const CardNode = memo<NodeProps>((props: NodeProps) => {
   const isMultipleNodesSelected = useMultipleNodesSelected();
   // No `⋯` on the entity card — action buttons appear above the card on hover only.
 
-  const hoverContainerRef = useRef<HTMLDivElement>(null);
+  const { containerRef: hoverContainerRef, setNodeHoverFocus: setEntityHoverFocus } =
+    useGraphNodeHoverFocus();
   const hoverCloseTimerRef = useRef<number | null>(null);
   const revealsActionsOnHover = interactive && !isMultipleNodesSelected;
   const [hoverToolbarState, setHoverToolbarState] = useState<'closed' | 'open' | 'exiting'>(
     'closed'
   );
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
-  const [metadataFiltersOpen, setMetadataFiltersOpen] = useState(false);
-  const isHoverActionsVisible =
-    hoverToolbarState !== 'closed' || actionsMenuOpen || metadataFiltersOpen;
+  const isHoverActionsVisible = hoverToolbarState !== 'closed' || actionsMenuOpen;
 
   const clearHoverCloseTimer = useCallback(() => {
     if (hoverCloseTimerRef.current != null) {
       window.clearTimeout(hoverCloseTimerRef.current);
       hoverCloseTimerRef.current = null;
-    }
-  }, []);
-
-  const setEntityHoverFocus = useCallback((active: boolean) => {
-    const container = hoverContainerRef.current;
-    const nodeEl = container?.closest('.react-flow__node');
-    const flowEl = container?.closest('.react-flow');
-    if (!nodeEl || !flowEl) {
-      return;
-    }
-
-    if (active) {
-      flowEl.classList.add('graph-entity-actions-hover');
-      nodeEl.classList.add('graph-actions-hover-active');
-      return;
-    }
-
-    nodeEl.classList.remove('graph-actions-hover-active');
-    if (!flowEl.querySelector('.graph-actions-hover-active')) {
-      flowEl.classList.remove('graph-entity-actions-hover');
     }
   }, []);
 
@@ -1238,24 +1216,6 @@ export const CardNode = memo<NodeProps>((props: NodeProps) => {
       closeEntityActions?.();
     }, HOVER_ACTIONS_EXIT_MS);
   }, [clearHoverCloseTimer, closeEntityActions, setEntityHoverFocus]);
-
-  const onMetadataPopoverOpenChange = useCallback(
-    (isOpen: boolean) => {
-      setMetadataFiltersOpen(isOpen);
-      if (isOpen) {
-        clearHoverCloseTimer();
-        return;
-      }
-      // Popover portals outside the card — if the pointer already left, dismiss chrome.
-      window.requestAnimationFrame(() => {
-        const container = hoverContainerRef.current;
-        if (!container?.matches(':hover')) {
-          closeHoverActions();
-        }
-      });
-    },
-    [clearHoverCloseTimer, closeHoverActions]
-  );
 
   const onActionsHoverOpen = useCallback(() => {
     if (!revealsActionsOnHover) {
@@ -1272,8 +1232,8 @@ export const CardNode = memo<NodeProps>((props: NodeProps) => {
         return;
       }
 
-      // Keep chrome while the classic Action Menu or Entity Metadata popover is open.
-      if (actionsMenuOpen || metadataFiltersOpen) {
+      // Keep chrome while the classic Action Menu popover is open.
+      if (actionsMenuOpen) {
         return;
       }
 
@@ -1292,13 +1252,7 @@ export const CardNode = memo<NodeProps>((props: NodeProps) => {
         closeHoverActions();
       }, HOVER_ACTIONS_CLOSE_DELAY_MS);
     },
-    [
-      revealsActionsOnHover,
-      actionsMenuOpen,
-      metadataFiltersOpen,
-      clearHoverCloseTimer,
-      closeHoverActions,
-    ]
+    [revealsActionsOnHover, actionsMenuOpen, clearHoverCloseTimer, closeHoverActions]
   );
 
   useEffect(
@@ -1345,7 +1299,7 @@ export const CardNode = memo<NodeProps>((props: NodeProps) => {
   const iconEmphasizedBg = iconBg;
   // Figma entity icons: pure black stroke for EUI glyphs; brand SVGs keep their own fills.
   const iconAccent = '#000000';
-  const originOutlineColor = euiTheme.colors.borderBaseProminent;
+  const originOutlineColor = euiTheme.colors.primary;
   // Groups use the real subtype icon (same resolution as singles) — not stacked-cards.
   const resolvedIcon = resolveIcon(icon, tag);
   const iconUsesBrandSvg = Boolean(icon && getSpanIcon(icon));
@@ -1415,8 +1369,6 @@ export const CardNode = memo<NodeProps>((props: NodeProps) => {
         <EntityHoverActionsToolbar
           getItems={getEntityActionItems}
           isExiting={hoverToolbarState === 'exiting'}
-          onMetadataPopoverOpenChange={onMetadataPopoverOpenChange}
-          showMetadataShortcut={!isGroup}
         />
       )}
       {highlightAsOrigin && (

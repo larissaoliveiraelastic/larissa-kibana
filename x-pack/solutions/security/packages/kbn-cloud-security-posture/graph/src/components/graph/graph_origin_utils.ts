@@ -8,27 +8,27 @@
 import { isEntityNode, isLabelNode } from '../utils';
 import type { NodeViewModel } from '../types';
 
-/** CSS class applied to origin entity and event/alert nodes when origin highlighting is active. */
+/** CSS class applied to the origin entity when "Highlight starting point" is on. */
 export const GRAPH_ORIGIN_NODE_CLASS = 'graph-origin-node';
 
-/** Opacity for non-origin nodes when origin highlighting is active. */
-export const GRAPH_NON_ORIGIN_NODE_OPACITY = 0.45;
-
-/** CSS class applied to edges connected to origin nodes when origin highlighting is active. */
-export const GRAPH_ORIGIN_EDGE_CLASS = 'graph-origin-edge';
+/** Soft dim for entity hover-actions (siblings fade, graph stays readable). */
+export const GRAPH_HOVER_DIM_OPACITY = 0.45;
 
 /**
- * Origin nodes are the starting entities, events, or alerts rendered when the graph
- * investigation opens — not relationship connectors or expanded graph additions.
+ * Starting-point highlight target: origin **entity** nodes only.
+ * Events/alerts are not ring-highlighted (and the rest of the graph is not dimmed).
+ */
+export const isOriginEntityNode = (node: NodeViewModel): boolean =>
+  isEntityNode(node) && Boolean(node.isOrigin);
+
+/**
+ * Origin entities, events, or alerts — used by layout spine / presence checks,
+ * not by the Display "Highlight starting point" ring.
  */
 export const isOriginEntityOrEventNode = (node: NodeViewModel): boolean => {
   if (isLabelNode(node)) {
     return Boolean(node.isOrigin || node.isOriginAlert);
   }
 
-  if (isEntityNode(node)) {
-    return Boolean(node.isOrigin);
-  }
-
-  return false;
+  return isOriginEntityNode(node);
 };

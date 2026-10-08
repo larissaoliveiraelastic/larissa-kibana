@@ -89,7 +89,18 @@ export const EdgeLabelOnHover = styled(EdgeLabel)<EdgeLabelProps & EdgeLabelCont
   }
 `;
 
-export const useEdgeColor = (_edgeColor?: EdgeViewModel['color']) => {
+export const useEdgeColor = (edgeColor?: EdgeViewModel['color']) => {
   const { euiTheme } = useEuiTheme();
-  return euiTheme.colors.borderBaseProminent;
+  switch (edgeColor) {
+    case 'danger':
+      return euiTheme.colors.danger;
+    case 'warning':
+      return euiTheme.colors.warning;
+    case 'primary':
+      return euiTheme.colors.primary;
+    case 'subdued':
+    default:
+      // Default graph edges stay neutral; primary is reserved for origin highlight.
+      return euiTheme.colors.borderBaseProminent;
+  }
 };

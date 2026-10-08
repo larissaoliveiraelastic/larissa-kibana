@@ -15,15 +15,14 @@ import { GRAPH_EDGE_ID } from '../test_ids';
 import { getGraphEdgePath, GRAPH_EDGE_STEP_OFFSET } from './get_graph_edge_path';
 import { useGraphLayoutContext } from '../graph/graph_layout_context';
 import { getGraphEdgeRenderColor } from './edge_processing';
+import { ORIGIN_NODE_OUTLINE_OFFSET } from '../node/origin_node_outline';
 
 const dashedStyle = {
   strokeDasharray: '2 2',
 };
 
-const originHighlightStyle = {
-  strokeWidth: 2.5,
-  strokeDasharray: '6 4',
-};
+/** Default edge stroke — 0.5px heavier than React Flow’s 1px default. */
+const EDGE_STROKE_WIDTH = 1.5;
 
 const NODES_WITHOUT_MARKER = ['label', 'group', 'relationship'];
 
@@ -52,12 +51,23 @@ export const DefaultEdge = memo(
     const truncateAtTrunk =
       useBundledEdgeRouting && data?.showArrowHead === false;
 
+    // Stop at the origin ring outer edge when the endpoint has the solid outline.
+    const sourceOutlineClearance = data?.sourceHasOriginOutline
+      ? ORIGIN_NODE_OUTLINE_OFFSET
+      : 0;
+    const targetOutlineClearance = data?.targetHasOriginOutline
+      ? ORIGIN_NODE_OUTLINE_OFFSET
+      : 0;
+
     // Integer endpoints — sub-pixel handle drift was stacking parallel stems.
     // Same tX for every edge into a tipped target (clearance must not depend on leader).
-    const sX = Math.round(sourceX - sourceMargin);
+    // Positive outline clearance moves the tip outward (away from the card interior).
+    const sX = Math.round(sourceX - sourceMargin + sourceOutlineClearance);
     const sY = Math.round(sourceY);
     const arrowClearance = canHaveArrow ? 1 : 0;
-    const tX = Math.round(targetX + targetMargin - arrowClearance);
+    const tX = Math.round(
+      targetX + targetMargin - arrowClearance - targetOutlineClearance
+    );
     const tY = Math.round(targetY);
 
     const edgePath = getGraphEdgePath({
@@ -72,8 +82,6 @@ export const DefaultEdge = memo(
       truncateAtTrunk,
     });
 
-    const isOriginHighlightEdge = Boolean(data?.isOriginHighlightEdge);
-
     return (
       <>
         <BaseEdge
@@ -81,14 +89,10 @@ export const DefaultEdge = memo(
           id={id}
           path={edgePath}
           interactionWidth={0}
-          className={isOriginHighlightEdge ? 'graph-origin-edge-path' : undefined}
           style={{
             stroke: useEdgeColor(color),
-            ...(isOriginHighlightEdge
-              ? originHighlightStyle
-              : data?.type === 'dashed'
-              ? dashedStyle
-              : {}),
+            strokeWidth: EDGE_STROKE_WIDTH,
+            ...(data?.type === 'dashed' ? dashedStyle : {}),
           }}
           markerEnd={markerEnd}
         />

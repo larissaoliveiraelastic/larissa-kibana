@@ -9,10 +9,10 @@ import React from 'react';
 import { css } from '@emotion/react';
 import { GRAPH_ORIGIN_NODE_OUTLINE_ID } from '../test_ids';
 
-/** Space between the node border and the origin highlight outline. */
+/** Space between the node border and the origin highlight ring. */
 export const ORIGIN_NODE_OUTLINE_OFFSET = 6;
 
-/** Dashed origin highlight stroke width. */
+/** Solid origin highlight stroke width. */
 export const ORIGIN_NODE_OUTLINE_BORDER_WIDTH = 2;
 
 /** Outline radius for full-size entity cards (card 12px + outline offset 6px). */
@@ -27,6 +27,10 @@ export interface OriginNodeOutlineProps {
   borderWidth?: number;
 }
 
+/**
+ * Solid ring around the investigation origin when "Highlight starting point" is on.
+ * Paired with dimming of non-origin nodes/edges — no dashed/marching edge treatment.
+ */
 export const OriginNodeOutline = ({
   borderColor,
   borderRadius,
@@ -37,7 +41,7 @@ export const OriginNodeOutline = ({
     css={css`
       position: absolute;
       inset: -${ORIGIN_NODE_OUTLINE_OFFSET}px;
-      border: ${borderWidth}px dashed ${borderColor};
+      border: ${borderWidth}px solid ${borderColor};
       border-radius: ${typeof borderRadius === 'number' ? `${borderRadius}px` : borderRadius};
       pointer-events: none;
     `}

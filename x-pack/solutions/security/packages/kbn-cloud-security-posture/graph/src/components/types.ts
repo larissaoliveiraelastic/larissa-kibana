@@ -25,8 +25,13 @@ export interface Size {
 
 interface BaseNodeDataViewModel {
   interactive?: boolean;
-  /** When true, render a dashed outline around the node. */
+  /** When true, render a solid origin ring around the node. */
   highlightAsOrigin?: boolean;
+  /**
+   * Node lies on the highlighted origin path (entity, event, or connector).
+   * Stays full-opacity; through-line uses primary blue.
+   */
+  isOnOriginHighlightPath?: boolean;
 }
 
 export type NodeClickCallback = (e: React.MouseEvent<HTMLElement>, node: NodeProps) => void;
@@ -140,7 +145,10 @@ export type EdgeProps = xyEdgeProps<
       sourceColor: NodeColor;
       targetShape: NodeShape;
       targetColor: NodeColor;
-      isOriginHighlightEdge?: boolean;
+      /** Source node has the solid origin ring — edge must stop at the ring, not the card. */
+      sourceHasOriginOutline?: boolean;
+      /** Target node has the solid origin ring — edge must stop at the ring, not the card. */
+      targetHasOriginOutline?: boolean;
       /**
        * False on bundled siblings — only the leader draws the final stem + arrow.
        * Siblings truncate their path at the trunk join (`truncateAtTrunk`).
