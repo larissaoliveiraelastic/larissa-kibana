@@ -76,8 +76,13 @@ export interface WorkflowGraphEditActions {
 /** Applied-state reason for the node warning badge tooltip. */
 export type NodeConfigWarningReason = 'incomplete' | 'misconfigured' | 'both';
 
-/** Settings node kinds (Option B canvas row above triggers). */
-export type WorkflowSettingsNodeKind = 'info' | 'constants' | 'outputs';
+/** Settings node kinds. `description` is the Use case B card. `settings` opens its tabbed panel. */
+export type WorkflowSettingsNodeKind =
+  | 'info'
+  | 'constants'
+  | 'outputs'
+  | 'description'
+  | 'settings';
 
 export interface WorkflowGraphActions {
   /** Called when the user clicks the Play icon on a node hover. */

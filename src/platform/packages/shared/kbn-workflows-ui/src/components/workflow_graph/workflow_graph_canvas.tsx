@@ -81,6 +81,7 @@ import { WorkflowGraphForeachGroupNode } from './workflow_graph_foreach_group_no
 import { WorkflowGraphNode } from './workflow_graph_node';
 import { WorkflowGraphPendingNode } from './workflow_graph_pending_node';
 import { WorkflowGraphSettingsGroupNode } from './workflow_graph_settings_group_node';
+import { WorkflowGraphSettingsDescriptionCard } from './workflow_graph_settings_description_card';
 import { WorkflowGraphSettingsNode } from './workflow_graph_settings_node';
 
 /** Subtle entrance when navigation chrome appears after the creation state. */
@@ -136,6 +137,7 @@ const NODE_TYPES: NodeTypes = {
   step: WorkflowGraphNode,
   trigger: WorkflowGraphNode,
   settings: WorkflowGraphSettingsNode,
+  settingsCard: WorkflowGraphSettingsDescriptionCard,
   settingsGroup: WorkflowGraphSettingsGroupNode,
   foreachGroup: WorkflowGraphForeachGroupNode,
   bypassLane: WorkflowGraphBypassLaneNode,
@@ -215,16 +217,50 @@ const getHomeFrameBounds = (
   // Frame the leading rank: settings (when present) + triggers so the home
   // view keeps both rows in view under TOP_PADDING.
   // Prefer the settings group (absolute) over child cards (parent-relative).
-  const leading = nodes.filter((n) => n.type === 'trigger' || n.type === 'settingsGroup');
+  const leading = nodes.filter(
+    (n) =>
+      n.type === 'trigger' ||
+      n.type === 'settingsGroup' ||
+      n.type === 'settingsCard' ||
+      (n.type === 'settings' && !n.parentId)
+  );
   return boundsFromNodes(leading.length > 0 ? leading : nodes) ?? fallback;
 };
+
+function CanvasSettingsButton({
+  isOpen,
+  onToggle,
+}: {
+  isOpen: boolean;
+  onToggle: () => void;
+}) {
+  const settingsLabel = i18n.translate('workflowsUi.graph.settingsChrome.settings', {
+    defaultMessage: 'Workflow settings',
+  });
+
+  return (
+    <EuiToolTip content={settingsLabel} position="right" disableScreenReaderOutput>
+      <EuiButtonIcon
+        iconType="gear"
+        aria-label={settingsLabel}
+        aria-pressed={isOpen}
+        color={isOpen ? 'primary' : 'text'}
+        size="s"
+        onClick={onToggle}
+        data-test-subj="workflowCanvas-settings"
+      />
+    </EuiToolTip>
+  );
+}
 
 function CanvasZoomControls({
   onResetView,
   onFitView,
+  settings,
 }: {
   onResetView: () => void;
   onFitView: () => void;
+  settings?: { isOpen: boolean; onToggle: () => void };
 }) {
   const { euiTheme } = useEuiTheme();
   const floatingShadow = useEuiShadow('m');
@@ -260,7 +296,22 @@ function CanvasZoomControls({
         },
         floatingShadow,
       ]}
+      data-test-subj={settings ? 'workflowCanvas-settingsChrome' : undefined}
     >
+      {settings ? (
+        <>
+          <CanvasSettingsButton isOpen={settings.isOpen} onToggle={settings.onToggle} />
+          <div
+            aria-hidden
+            data-test-subj="workflowCanvas-settingsDivider"
+            css={{
+              alignSelf: 'stretch',
+              borderTop: euiTheme.border.thin,
+              margin: `${euiTheme.size.xs} -${euiTheme.size.s}`,
+            }}
+          />
+        </>
+      ) : null}
       <EuiToolTip content={zoomInLabel} position="right" disableScreenReaderOutput>
         <EuiButtonIcon
           iconType="plus"
@@ -301,6 +352,36 @@ function CanvasZoomControls({
           data-test-subj="workflowCanvas-fit-view"
         />
       </EuiToolTip>
+    </div>
+  );
+}
+
+function CanvasSettingsChrome({
+  isOpen,
+  onToggle,
+}: {
+  isOpen: boolean;
+  onToggle: () => void;
+}) {
+  const { euiTheme } = useEuiTheme();
+  const floatingShadow = useEuiShadow('m');
+
+  return (
+    <div
+      css={[
+        {
+          background: euiTheme.colors.backgroundBasePlain,
+          borderRadius: WORKFLOWS_SURFACE_RADIUS,
+          display: 'flex',
+          flexDirection: 'column',
+          padding: euiTheme.size.s,
+          position: 'relative',
+        },
+        floatingShadow,
+      ]}
+      data-test-subj="workflowCanvas-settingsChrome"
+    >
+      <CanvasSettingsButton isOpen={isOpen} onToggle={onToggle} />
     </div>
   );
 }
@@ -690,9 +771,14 @@ function WorkflowGraphCanvasInner(props: WorkflowGraphCanvasProps) {
       _evt: React.MouseEvent,
       node: { id: string; type?: string; data: Record<string, unknown> }
     ) => {
-      if (node.type === 'settings') {
+      if (node.type === 'settings' || node.type === 'settingsCard') {
         const kind = node.data?.kind;
-        if (kind === 'info' || kind === 'constants' || kind === 'outputs') {
+        if (
+          kind === 'info' ||
+          kind === 'constants' ||
+          kind === 'outputs' ||
+          kind === 'description'
+        ) {
           onSettingsNodeSelect?.(kind);
         }
         return;
@@ -1083,6 +1169,16 @@ function WorkflowGraphCanvasInner(props: WorkflowGraphCanvasProps) {
   const canPan = hasWorkflowStructure;
   const showZoomCluster = showNavChrome && showZoomControls;
   const showMinimapPanel = showNavChrome && showMinimap;
+  const showDescriptionSettingsChrome =
+    settingsNodes?.cardLayout === 'description' && onSettingsNodeSelect != null;
+  const settingsInZoomCluster =
+    showDescriptionSettingsChrome && settingsNodes?.settingsChromePlacement === 'zoomCluster';
+  const showTopSettingsChrome =
+    showDescriptionSettingsChrome &&
+    settingsNodes?.settingsChromePlacement !== 'zoomCluster' &&
+    settingsNodes?.settingsChromePlacement !== 'none';
+  const toggleDescriptionSettings = () =>
+    onSettingsNodeSelect?.(settingsNodes?.selectedKind === 'settings' ? undefined : 'settings');
 
   return (
     <WorkflowGraphActionsContext.Provider value={actions}>
@@ -1179,7 +1275,28 @@ function WorkflowGraphCanvasInner(props: WorkflowGraphCanvasProps) {
               {showZoomCluster && (
                 <Panel position="bottom-left" style={{ margin: WORKFLOWS_CANVAS_CHROME_INSET }}>
                   <div css={chromeAppearCss} data-test-subj="workflowCanvas-navChrome-zoom">
-                    <CanvasZoomControls onResetView={handleResetView} onFitView={handleFitView} />
+                    <CanvasZoomControls
+                      onResetView={handleResetView}
+                      onFitView={handleFitView}
+                      settings={
+                        settingsInZoomCluster
+                          ? {
+                              isOpen: settingsNodes?.selectedKind === 'settings',
+                              onToggle: toggleDescriptionSettings,
+                            }
+                          : undefined
+                      }
+                    />
+                  </div>
+                </Panel>
+              )}
+              {showTopSettingsChrome && (
+                <Panel position="top-left" style={{ margin: WORKFLOWS_CANVAS_CHROME_INSET }}>
+                  <div css={chromeAppearCss}>
+                    <CanvasSettingsChrome
+                      isOpen={settingsNodes?.selectedKind === 'settings'}
+                      onToggle={toggleDescriptionSettings}
+                    />
                   </div>
                 </Panel>
               )}

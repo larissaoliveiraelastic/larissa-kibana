@@ -7,15 +7,21 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import { transparentize, useEuiTheme } from '@elastic/eui';
+import { EuiIcon, transparentize, useEuiTheme } from '@elastic/eui';
 import type { Node, NodeProps } from '@xyflow/react';
 import React, { memo } from 'react';
 import { i18n } from '@kbn/i18n';
-import { SETTINGS_GROUP_HEADER_HEIGHT, SETTINGS_GROUP_PAD } from './build_settings_nodes';
+import {
+  DATA_GROUP_HEADER_HEIGHT,
+  SETTINGS_GROUP_HEADER_HEIGHT,
+  SETTINGS_GROUP_PAD,
+} from './build_settings_nodes';
 
 export interface WorkflowGraphSettingsGroupNodeData extends Record<string, unknown> {
   /** True when one of the settings cards inside is selected. */
   readonly hasSelection?: boolean;
+  /** Option E names the group Workflow data. Other canvas options keep Workflow settings. */
+  readonly title?: 'settings' | 'data';
 }
 
 /**
@@ -25,9 +31,13 @@ export interface WorkflowGraphSettingsGroupNodeData extends Record<string, unkno
 function WorkflowGraphSettingsGroupNodeInner(
   node: NodeProps<Node<WorkflowGraphSettingsGroupNodeData>>
 ) {
-  const { hasSelection } = node.data;
+  const { hasSelection, title } = node.data;
   const { euiTheme } = useEuiTheme();
-  const borderRadius = euiTheme.border.radius.small ?? 4;
+  const isData = title === 'data';
+  const borderRadius = isData
+    ? (euiTheme.border.radius.medium ?? 6)
+    : (euiTheme.border.radius.small ?? 4);
+  const headerHeight = isData ? DATA_GROUP_HEADER_HEIGHT : SETTINGS_GROUP_HEADER_HEIGHT;
 
   return (
     <div
@@ -37,7 +47,9 @@ function WorkflowGraphSettingsGroupNodeInner(
         width: '100%',
         height: '100%',
         boxSizing: 'border-box',
-        background: transparentize(euiTheme.colors.backgroundBasePlain, 0.45),
+        background: isData
+          ? euiTheme.colors.backgroundBasePlain
+          : transparentize(euiTheme.colors.backgroundBasePlain, 0.45),
         border: `${euiTheme.border.width.thin} solid ${
           hasSelection ? euiTheme.colors.primary : euiTheme.colors.borderBaseSubdued
         }`,
@@ -50,9 +62,10 @@ function WorkflowGraphSettingsGroupNodeInner(
     >
       <div
         css={{
-          height: SETTINGS_GROUP_HEADER_HEIGHT,
+          height: headerHeight,
           display: 'flex',
           alignItems: 'center',
+          gap: euiTheme.size.s,
           fontFamily: euiTheme.font.family,
           fontSize: 12,
           fontWeight: euiTheme.font.weight.medium,
@@ -63,9 +76,14 @@ function WorkflowGraphSettingsGroupNodeInner(
           textOverflow: 'ellipsis',
         }}
       >
-        {i18n.translate('workflowsUi.graph.settings.groupTitle', {
-          defaultMessage: 'Workflow settings',
-        })}
+        {isData ? <EuiIcon type="workflow" size="m" color="subdued" aria-hidden={true} /> : null}
+        {isData
+          ? i18n.translate('workflowsUi.graph.settings.groupTitleData', {
+              defaultMessage: 'Workflow data',
+            })
+          : i18n.translate('workflowsUi.graph.settings.groupTitle', {
+              defaultMessage: 'Workflow settings',
+            })}
       </div>
     </div>
   );

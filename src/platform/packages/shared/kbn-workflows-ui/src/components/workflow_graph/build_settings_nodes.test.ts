@@ -10,6 +10,10 @@
 import type { Node } from '@xyflow/react';
 import {
   buildWorkflowSettingsNodes,
+  DATA_CARD_HEIGHT,
+  DATA_CARD_WIDTH,
+  DESCRIPTION_CARD_NODE_HEIGHT,
+  DESCRIPTION_CARD_NODE_WIDTH,
   SETTINGS_COMPACT_HEIGHT,
   SETTINGS_COMPACT_WIDTH,
   SETTINGS_GROUP_HEADER_HEIGHT,
@@ -135,5 +139,100 @@ describe('buildWorkflowSettingsNodes', () => {
         outputsCount: 0,
       })
     ).toEqual([]);
+  });
+
+  it('places a single Workflow settings card above triggers when cardLayout is single', () => {
+    const nodes = buildWorkflowSettingsNodes([triggerAt(0, 200)], 'TB', {
+      workflowName: 'Demo',
+      constantsCount: 2,
+      outputsCount: 1,
+      selectedKind: 'info',
+      cardLayout: 'single',
+    });
+
+    expect(nodes).toHaveLength(1);
+    expect(nodes[0].parentId).toBeUndefined();
+    expect(nodes.some((n) => n.type === 'settingsGroup')).toBe(false);
+    expect(nodes[0]).toMatchObject({
+      id: 'settings:info',
+      type: 'settings',
+      width: PENDING_NODE_WIDTH,
+      height: PENDING_NODE_HEIGHT,
+      selected: true,
+      position: {
+        x: 0,
+        y: 200 - SETTINGS_TO_FLOW_GAP - PENDING_NODE_HEIGHT,
+      },
+      data: {
+        kind: 'info',
+        label: 'Workflow settings',
+        subtitle: 'General, constants, and outputs',
+        iconType: 'gear',
+        compact: false,
+      },
+    });
+  });
+
+  it('places one unconnected description card above triggers when cardLayout is description', () => {
+    const nodes = buildWorkflowSettingsNodes([triggerAt(0, 200)], 'TB', {
+      workflowName: 'Demo',
+      constantsCount: 4,
+      outputsCount: 3,
+      description: 'Removes a Run key value.',
+      tags: ['endpoint', 'windows'],
+      cardLayout: 'description',
+    });
+
+    expect(nodes).toHaveLength(1);
+    expect(nodes.some((n) => n.type === 'settingsGroup')).toBe(false);
+    expect(nodes[0].parentId).toBeUndefined();
+    expect(nodes[0]).toMatchObject({
+      id: 'settings:description',
+      type: 'settingsCard',
+      connectable: false,
+      width: DESCRIPTION_CARD_NODE_WIDTH,
+      height: DESCRIPTION_CARD_NODE_HEIGHT,
+      position: {
+        x: PENDING_NODE_WIDTH / 2 - DESCRIPTION_CARD_NODE_WIDTH / 2,
+        y: 200 - SETTINGS_TO_FLOW_GAP - DESCRIPTION_CARD_NODE_HEIGHT,
+      },
+      data: {
+        kind: 'info',
+        workflowName: 'Demo',
+        description: 'Removes a Run key value.',
+        tags: ['endpoint', 'windows'],
+      },
+    });
+  });
+
+  it('uses the Workflow data preview cards when groupTitle is data', () => {
+    const nodes = buildWorkflowSettingsNodes([triggerAt(0, 200)], 'TB', {
+      workflowName: 'Demo',
+      constantsCount: 4,
+      outputsCount: 3,
+      tags: ['security', 'endpoint'],
+      constantsPreview: [{ name: 'logs_index', value: 'logs-endpoint.*' }],
+      outputsPreview: [{ name: 'summary', value: 'string' }],
+      groupTitle: 'data',
+    });
+
+    expect(nodes[0]).toMatchObject({
+      id: SETTINGS_GROUP_NODE_ID,
+      data: { title: 'data' },
+    });
+    const cards = nodes.slice(1);
+    expect(cards.every((node) => node.width === DATA_CARD_WIDTH)).toBe(true);
+    expect(cards.every((node) => node.height === DATA_CARD_HEIGHT)).toBe(true);
+    expect(cards[1].data).toMatchObject({
+      kind: 'constants',
+      presentation: 'data',
+      count: 4,
+      rows: [{ name: 'logs_index', value: 'logs-endpoint.*' }],
+    });
+    expect(cards[2].data).toMatchObject({
+      kind: 'outputs',
+      count: 3,
+      rows: [{ name: 'summary', value: 'string' }],
+    });
   });
 });

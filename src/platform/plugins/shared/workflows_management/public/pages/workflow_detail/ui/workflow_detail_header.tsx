@@ -27,6 +27,7 @@ import { WorkflowAccessControlModal } from './workflow_access_control_modal';
 import { WorkflowSettingsFlyout } from './workflow_settings_flyout';
 import {
   getWorkflowSettingsSurfaceVariant,
+  isHeaderGearSettingsSurface,
   subscribeWorkflowSettingsSurfaceVariant,
   type WorkflowSettingsSurfaceVariant,
 } from '../../../features/workflow_visual_editor/ui/workflow_settings_surface_variant';
@@ -160,7 +161,7 @@ export const WorkflowDetailHeader = React.memo(
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [settingsSurfaceVariant, setSettingsSurfaceVariant] =
       useState<WorkflowSettingsSurfaceVariant>(() => getWorkflowSettingsSurfaceVariant());
-    const showHeaderSettingsGear = settingsSurfaceVariant === 'a';
+    const showHeaderSettingsGear = isHeaderGearSettingsSurface(settingsSurfaceVariant);
     const canReadVisibleWorkflowExecution =
       canReadWorkflowExecution && (!isManagedWorkflow || canReadManagedWorkflowExecution);
 
@@ -395,7 +396,7 @@ export const WorkflowDetailHeader = React.memo(
     const badges = useMemo<AppHeaderBadge[]>(() => {
       const result: AppHeaderBadge[] = [];
 
-      // Variant A keeps the header flyout. B/C open settings from the canvas.
+      // Option D keeps the header flyout. The other options open settings from the canvas.
       if (showHeaderSettingsGear) {
         result.push({
           label: settingsAriaLabel,
