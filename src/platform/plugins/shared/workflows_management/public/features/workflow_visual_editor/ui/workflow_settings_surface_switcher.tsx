@@ -9,15 +9,10 @@
 
 import {
   EuiButton,
-  EuiButtonGroup,
-  type EuiButtonGroupOptionProps,
-  EuiCheckbox,
   EuiFlyout,
   EuiFlyoutBody,
   EuiFlyoutHeader,
   EuiRadio,
-  EuiSpacer,
-  EuiText,
   EuiTitle,
   useEuiTheme,
   useGeneratedHtmlId,
@@ -27,40 +22,21 @@ import { i18n } from '@kbn/i18n';
 import { FormattedMessage } from '@kbn/i18n-react';
 import { useKibana } from '../../../hooks/use_kibana';
 import {
-  getShowCreationEmptyState,
-  setShowCreationEmptyState,
-  subscribeShowCreationEmptyState,
-} from './workflow_creation_empty_state_prototype';
-import {
-  getWorkflowSettingsBNodeLayout,
   getWorkflowSettingsSurfaceVariant,
-  setWorkflowSettingsBNodeLayout,
   setWorkflowSettingsSurfaceVariant,
   subscribeWorkflowSettingsSurfaceVariant,
-  type WorkflowSettingsBNodeLayout,
   type WorkflowSettingsSurfaceVariant,
 } from './workflow_settings_surface_variant';
 
-const B_LAYOUT_OPTIONS: EuiButtonGroupOptionProps[] = [
-  {
-    id: 'row',
-    label: i18n.translate('workflows.settingsSurface.switcher.bLayout.row', {
-      defaultMessage: 'Row',
-    }),
-  },
-  {
-    id: 'vertical',
-    label: i18n.translate('workflows.settingsSurface.switcher.bLayout.vertical', {
-      defaultMessage: 'Vertical',
-    }),
-  },
-  {
-    id: 'compact',
-    label: i18n.translate('workflows.settingsSurface.switcher.bLayout.compact', {
-      defaultMessage: 'Compact',
-    }),
-  },
-];
+function OptionLabel({ title, description }: { title: string; description: string }) {
+  const { euiTheme } = useEuiTheme();
+  return (
+    <span>
+      <span css={{ fontWeight: euiTheme.font.weight.bold }}>{title}</span>
+      <span css={{ fontWeight: euiTheme.font.weight.regular }}>{` · ${description}`}</span>
+    </span>
+  );
+}
 
 const SettingsSurfacePrototypeNavControl = () => {
   const { euiTheme } = useEuiTheme();
@@ -68,32 +44,17 @@ const SettingsSurfacePrototypeNavControl = () => {
   const [value, setValue] = useState<WorkflowSettingsSurfaceVariant>(() =>
     getWorkflowSettingsSurfaceVariant()
   );
-  const [bLayout, setBLayout] = useState<WorkflowSettingsBNodeLayout>(() =>
-    getWorkflowSettingsBNodeLayout()
-  );
-  const [showCreationEmptyState, setShowCreationEmptyStateLocal] = useState(() =>
-    getShowCreationEmptyState()
-  );
   const titleId = useGeneratedHtmlId({ prefix: 'workflowSettingsSurfacePrototype' });
-  const radioAId = useGeneratedHtmlId({ prefix: 'settingsSurfaceA' });
-  const radioBId = useGeneratedHtmlId({ prefix: 'settingsSurfaceB' });
-  const radioCId = useGeneratedHtmlId({ prefix: 'settingsSurfaceC' });
-  const radioDId = useGeneratedHtmlId({ prefix: 'settingsSurfaceD' });
-  const emptyStateCheckboxId = useGeneratedHtmlId({ prefix: 'creationEmptyState' });
+  const radioAId = useGeneratedHtmlId({ prefix: 'settingsSurfaceOptionA' });
+  const radioBId = useGeneratedHtmlId({ prefix: 'settingsSurfaceOptionB' });
+  const radioCId = useGeneratedHtmlId({ prefix: 'settingsSurfaceOptionC' });
+  const radioDId = useGeneratedHtmlId({ prefix: 'settingsSurfaceOptionD' });
+  const radioEId = useGeneratedHtmlId({ prefix: 'settingsSurfaceOptionE' });
 
   useEffect(
     () =>
       subscribeWorkflowSettingsSurfaceVariant(() => {
         setValue(getWorkflowSettingsSurfaceVariant());
-        setBLayout(getWorkflowSettingsBNodeLayout());
-      }),
-    []
-  );
-
-  useEffect(
-    () =>
-      subscribeShowCreationEmptyState(() => {
-        setShowCreationEmptyStateLocal(getShowCreationEmptyState());
       }),
     []
   );
@@ -118,7 +79,7 @@ const SettingsSurfacePrototypeNavControl = () => {
           type="push"
           size="s"
           maxWidth={false}
-          style={{ width: 280 }}
+          style={{ width: 440 }}
           onClose={close}
           aria-labelledby={titleId}
           data-test-subj="workflowSettingsSurfaceSwitcher"
@@ -134,17 +95,10 @@ const SettingsSurfacePrototypeNavControl = () => {
             </EuiTitle>
           </EuiFlyoutHeader>
           <EuiFlyoutBody>
-            <EuiText size="s" color="subdued">
-              <FormattedMessage
-                id="workflows.settingsSurface.switcher.flyoutDescription"
-                defaultMessage="Preview the workflow-settings chrome patterns: A side panel, B canvas info nodes, C collapsible launcher, or D a canvas node that opens General, Constants, and Outputs."
-              />
-            </EuiText>
-            <EuiSpacer size="m" />
             <div
               role="radiogroup"
               aria-label={i18n.translate('workflows.settingsSurface.switcher.legend', {
-                defaultMessage: 'Settings surface prototype',
+                defaultMessage: 'Options',
               })}
               data-test-subj="workflowSettingsSurfaceSwitcherOptions"
               css={{
@@ -155,86 +109,90 @@ const SettingsSurfacePrototypeNavControl = () => {
             >
               <EuiRadio
                 id={radioAId}
-                checked={value === 'a'}
-                onChange={() => setWorkflowSettingsSurfaceVariant('a')}
-                label={i18n.translate('workflows.settingsSurface.switcher.a', {
-                  defaultMessage: 'A · Side panel',
-                })}
+                checked={value === 'b'}
+                onChange={() => setWorkflowSettingsSurfaceVariant('b')}
+                label={
+                  <OptionLabel
+                    title={i18n.translate('workflows.settingsSurface.switcher.optionATitle', {
+                      defaultMessage: 'Option A',
+                    })}
+                    description={i18n.translate(
+                      'workflows.settingsSurface.switcher.optionADescription',
+                      { defaultMessage: 'Settings in the canvas' }
+                    )}
+                  />
+                }
+                data-test-subj="workflowSettingsSurfaceOptionA"
               />
-              <div>
-                <EuiRadio
-                  id={radioBId}
-                  checked={value === 'b'}
-                  onChange={() => setWorkflowSettingsSurfaceVariant('b')}
-                  label={i18n.translate('workflows.settingsSurface.switcher.b', {
-                    defaultMessage: 'B · Info node',
-                  })}
-                />
-                {value === 'b' ? (
-                  <div
-                    css={{
-                      marginTop: euiTheme.size.s,
-                      marginLeft: euiTheme.size.l,
-                    }}
-                    data-test-subj="workflowSettingsSurfaceBLayout"
-                  >
-                    <EuiText size="xs" color="subdued">
-                      <FormattedMessage
-                        id="workflows.settingsSurface.switcher.bLayout.label"
-                        defaultMessage="Node layout"
-                      />
-                    </EuiText>
-                    <EuiSpacer size="xs" />
-                    <EuiButtonGroup
-                      legend={i18n.translate('workflows.settingsSurface.switcher.bLayout.legend', {
-                        defaultMessage: 'Option B node layout',
-                      })}
-                      options={B_LAYOUT_OPTIONS}
-                      idSelected={bLayout}
-                      onChange={(id) =>
-                        setWorkflowSettingsBNodeLayout(id as WorkflowSettingsBNodeLayout)
-                      }
-                      buttonSize="compressed"
-                      color="primary"
-                      data-test-subj="workflowSettingsSurfaceBLayoutOptions"
-                    />
-                  </div>
-                ) : null}
-              </div>
+              <EuiRadio
+                id={radioBId}
+                checked={value === 'card'}
+                onChange={() => setWorkflowSettingsSurfaceVariant('card')}
+                label={
+                  <OptionLabel
+                    title={i18n.translate('workflows.settingsSurface.switcher.optionBTitle', {
+                      defaultMessage: 'Option B',
+                    })}
+                    description={i18n.translate(
+                      'workflows.settingsSurface.switcher.optionBDescription',
+                      { defaultMessage: 'Information in the canvas and settings button' }
+                    )}
+                  />
+                }
+                data-test-subj="workflowSettingsSurfaceOptionB"
+              />
               <EuiRadio
                 id={radioCId}
-                checked={value === 'c'}
-                onChange={() => setWorkflowSettingsSurfaceVariant('c')}
-                label={i18n.translate('workflows.settingsSurface.switcher.c', {
-                  defaultMessage: 'C · Collapsible',
-                })}
+                checked={value === 'a'}
+                onChange={() => setWorkflowSettingsSurfaceVariant('a')}
+                label={
+                  <OptionLabel
+                    title={i18n.translate('workflows.settingsSurface.switcher.optionCTitle', {
+                      defaultMessage: 'Option C',
+                    })}
+                    description={i18n.translate(
+                      'workflows.settingsSurface.switcher.optionCDescription',
+                      { defaultMessage: 'Information in the canvas and settings button' }
+                    )}
+                  />
+                }
+                data-test-subj="workflowSettingsSurfaceOptionC"
               />
               <EuiRadio
                 id={radioDId}
                 checked={value === 'd'}
                 onChange={() => setWorkflowSettingsSurfaceVariant('d')}
-                label={i18n.translate('workflows.settingsSurface.switcher.d', {
-                  defaultMessage: 'D · Workflow settings',
-                })}
+                label={
+                  <OptionLabel
+                    title={i18n.translate('workflows.settingsSurface.switcher.optionDTitle', {
+                      defaultMessage: 'Option D',
+                    })}
+                    description={i18n.translate(
+                      'workflows.settingsSurface.switcher.optionDDescription',
+                      { defaultMessage: 'Duplication' }
+                    )}
+                  />
+                }
+                data-test-subj="workflowSettingsSurfaceOptionD"
+              />
+              <EuiRadio
+                id={radioEId}
+                checked={value === 'e'}
+                onChange={() => setWorkflowSettingsSurfaceVariant('e')}
+                label={
+                  <OptionLabel
+                    title={i18n.translate('workflows.settingsSurface.switcher.optionETitle', {
+                      defaultMessage: 'Option E',
+                    })}
+                    description={i18n.translate(
+                      'workflows.settingsSurface.switcher.optionEDescription',
+                      { defaultMessage: 'Settings in the canvas' }
+                    )}
+                  />
+                }
+                data-test-subj="workflowSettingsSurfaceOptionE"
               />
             </div>
-            <EuiSpacer size="l" />
-            <EuiText size="s" color="subdued">
-              <FormattedMessage
-                id="workflows.settingsSurface.switcher.creationEmptyStateDescription"
-                defaultMessage="Empty-canvas creation experience (AI prompt, triggers, templates). Off by default — new workflows open on the visual builder."
-              />
-            </EuiText>
-            <EuiSpacer size="s" />
-            <EuiCheckbox
-              id={emptyStateCheckboxId}
-              checked={showCreationEmptyState}
-              onChange={(e) => setShowCreationEmptyState(e.target.checked)}
-              label={i18n.translate('workflows.settingsSurface.switcher.creationEmptyState', {
-                defaultMessage: 'Show empty state',
-              })}
-              data-test-subj="workflowCreationEmptyStatePrototypeCheckbox"
-            />
           </EuiFlyoutBody>
         </EuiFlyout>
       ) : null}
@@ -249,7 +207,7 @@ export interface WorkflowSettingsSurfaceSwitcherProps {
 
 /**
  * Prototype-only control: mounts a Prototype button in the global header
- * (after the profile menu) that opens a push flyout with A/B/C options.
+ * (after the profile menu) that opens a push flyout with the options.
  */
 export function WorkflowSettingsSurfaceSwitcher(_props: WorkflowSettingsSurfaceSwitcherProps) {
   const { chrome } = useKibana().services;

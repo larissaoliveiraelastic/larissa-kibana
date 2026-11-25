@@ -21,6 +21,13 @@ export const SETTINGS_GROUP_PAD = 16;
 /** Title band above the cards (“Workflow settings”). */
 export const SETTINGS_GROUP_HEADER_HEIGHT = 20;
 
+/** Option E group title, tall enough for the workflow icon. */
+export const DATA_GROUP_HEADER_HEIGHT = 24;
+
+/** Option E preview cards: Info, Constants, and Outputs. */
+export const DATA_CARD_WIDTH = 272;
+export const DATA_CARD_HEIGHT = 126;
+
 /** Gap from the settings group to the trigger row (tighter than WORKFLOW_RANK_SEP). */
 export const SETTINGS_TO_FLOW_GAP = 100;
 
@@ -28,16 +35,36 @@ export const SETTINGS_TO_FLOW_GAP = 100;
 export const SETTINGS_COMPACT_WIDTH = 168;
 export const SETTINGS_COMPACT_HEIGHT = 40;
 
-/** How Option B settings cards are arranged. `single` is Option D: one card, no group. */
-export type SettingsNodesCardLayout = 'row' | 'vertical' | 'compact' | 'single';
+/** How settings cards are arranged. `description` is Use case B: one card, no group. */
+export type SettingsNodesCardLayout = 'row' | 'vertical' | 'compact' | 'single' | 'description';
+
+/** Info card matches a step node width. A canvas gear opens constants and outputs. */
+export const DESCRIPTION_CARD_NODE_WIDTH = PENDING_NODE_WIDTH;
+export const DESCRIPTION_CARD_NODE_HEIGHT = 100;
 
 export interface WorkflowSettingsNodesInput {
   readonly workflowName: string;
   readonly constantsCount: number;
   readonly outputsCount: number;
+  /** Use case B card body. Empty string renders the existing “No description” copy. */
+  readonly description?: string;
+  /** Use case B card chips. */
+  readonly tags?: readonly string[];
   readonly selectedKind?: WorkflowSettingsNodeKind;
   /** Defaults to `row`. */
   readonly cardLayout?: SettingsNodesCardLayout;
+  /**
+   * Description-card settings gear. `top` keeps it in its own corner block.
+   * `zoomCluster` places it in the bottom zoom block, above zoom in.
+   * `none` hides it when settings open from somewhere else.
+   */
+  readonly settingsChromePlacement?: 'top' | 'zoomCluster' | 'none';
+  /** Option E titles the group “Workflow data” and uses the preview cards. */
+  readonly groupTitle?: 'settings' | 'data';
+  /** First constants shown on the Option E card. The count badge uses `constantsCount`. */
+  readonly constantsPreview?: readonly { readonly name: string; readonly value: string }[];
+  /** First outputs shown on the Option E card. `value` is the output type. */
+  readonly outputsPreview?: readonly { readonly name: string; readonly value: string }[];
 }
 
 interface SettingsNodeSpec {
@@ -85,7 +112,7 @@ function settingsNodeSpecs(input: WorkflowSettingsNodesInput): SettingsNodeSpec[
         defaultMessage: '{count} defined',
         values: { count: input.constantsCount },
       }),
-      iconType: 'code',
+      iconType: 'key',
     },
     {
       kind: 'outputs',
@@ -96,7 +123,7 @@ function settingsNodeSpecs(input: WorkflowSettingsNodesInput): SettingsNodeSpec[
         defaultMessage: '{count} defined',
         values: { count: input.outputsCount },
       }),
-      iconType: 'share',
+      iconType: 'logstashOutput',
     },
   ];
 }
@@ -149,6 +176,42 @@ export function buildWorkflowSettingsNodes(
   const width = isCompact ? SETTINGS_COMPACT_WIDTH : PENDING_NODE_WIDTH;
   const height = isCompact ? SETTINGS_COMPACT_HEIGHT : PENDING_NODE_HEIGHT;
 
+  if (cardLayout === 'description') {
+    const width = DESCRIPTION_CARD_NODE_WIDTH;
+    const height = DESCRIPTION_CARD_NODE_HEIGHT;
+    let x: number;
+    let y: number;
+    if (direction === 'LR') {
+      const bandMidY = (extent.minY + extent.maxY) / 2;
+      x = extent.minX - SETTINGS_TO_FLOW_GAP - width;
+      y = bandMidY - height / 2;
+    } else {
+      const bandMidX = (extent.minX + extent.maxX) / 2;
+      y = extent.minY - SETTINGS_TO_FLOW_GAP - height;
+      x = bandMidX - width / 2;
+    }
+    return [
+      {
+        id: 'settings:description',
+        type: 'settingsCard',
+        position: { x, y },
+        width,
+        height,
+        draggable: false,
+        selectable: false,
+        connectable: false,
+        className: 'nopan',
+        selected: input.selectedKind === 'info',
+        data: {
+          kind: 'info',
+          workflowName: input.workflowName,
+          description: input.description ?? '',
+          tags: input.tags ?? [],
+        },
+      },
+    ];
+  }
+
   if (cardLayout === 'single') {
     const spec = specs[0];
     let x: number;
@@ -184,14 +247,18 @@ export function buildWorkflowSettingsNodes(
     ];
   }
 
+  const isDataGroup = input.groupTitle === 'data';
+  const cardWidth = isDataGroup ? DATA_CARD_WIDTH : width;
+  const cardHeight = isDataGroup ? DATA_CARD_HEIGHT : height;
   const gap = SETTINGS_GROUP_PAD;
   const pad = SETTINGS_GROUP_PAD;
+  const headerHeight = isDataGroup ? DATA_GROUP_HEADER_HEIGHT : SETTINGS_GROUP_HEADER_HEIGHT;
   const span =
-    specs.length * (arrangeInRow ? width : height) + (specs.length - 1) * gap;
+    specs.length * (arrangeInRow ? cardWidth : cardHeight) + (specs.length - 1) * gap;
   // Top pad + title + gap before cards (same as pad).
-  const topInset = pad + SETTINGS_GROUP_HEADER_HEIGHT + pad;
-  const cardAreaW = arrangeInRow ? span : width;
-  const cardAreaH = arrangeInRow ? height : span;
+  const topInset = pad + headerHeight + pad;
+  const cardAreaW = arrangeInRow ? span : cardWidth;
+  const cardAreaH = arrangeInRow ? cardHeight : span;
   const groupW = cardAreaW + pad * 2;
   const groupH = topInset + cardAreaH + pad;
 
@@ -222,14 +289,19 @@ export function buildWorkflowSettingsNodes(
     zIndex: -1,
     data: {
       hasSelection: input.selectedKind != null,
+      title: input.groupTitle === 'data' ? 'data' : 'settings',
     },
   };
 
   const cardNodes = specs.map((spec, index) => {
-    const localX = arrangeInRow ? pad + index * (width + gap) : pad;
-    const localY = arrangeInRow
-      ? topInset
-      : topInset + index * (height + gap);
+    const localX = arrangeInRow ? pad + index * (cardWidth + gap) : pad;
+    const localY = arrangeInRow ? topInset : topInset + index * (cardHeight + gap);
+    const preview =
+      spec.kind === 'constants'
+        ? input.constantsPreview
+        : spec.kind === 'outputs'
+          ? input.outputsPreview
+          : undefined;
 
     return {
       id: `settings:${spec.kind}`,
@@ -237,8 +309,8 @@ export function buildWorkflowSettingsNodes(
       parentId: SETTINGS_GROUP_NODE_ID,
       extent: 'parent' as const,
       position: { x: localX, y: localY },
-      width,
-      height,
+      width: cardWidth,
+      height: cardHeight,
       draggable: false,
       connectable: false,
       className: 'nopan',
@@ -247,9 +319,15 @@ export function buildWorkflowSettingsNodes(
         kind: spec.kind,
         label: spec.label,
         subtitle: spec.subtitle,
-        iconType: spec.iconType,
-        compact: isCompact,
-      },
+          iconType: spec.iconType,
+          compact: isCompact,
+          presentation: isDataGroup ? 'data' : 'summary',
+          workflowName: input.workflowName,
+          description: input.description ?? '',
+          tags: input.tags ?? [],
+          count: spec.kind === 'constants' ? input.constantsCount : input.outputsCount,
+          rows: preview ?? [],
+        },
     };
   });
 

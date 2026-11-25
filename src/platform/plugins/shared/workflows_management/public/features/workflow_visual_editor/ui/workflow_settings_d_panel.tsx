@@ -41,6 +41,11 @@ ensureWorkflowGraphEuiIcons();
 export interface WorkflowSettingsDPanelProps {
   readonly readOnly?: boolean;
   readonly onClose: () => void;
+  /**
+   * Use case B already shows name, description, and tags on the canvas card,
+   * so that surface omits the General tab.
+   */
+  readonly includeGeneral?: boolean;
 }
 
 type SettingsTab = 'general' | 'constants' | 'outputs';
@@ -70,10 +75,19 @@ const TABS: Array<{ id: SettingsTab; label: string }> = [
  * Option D: one canvas node opens the step config panel with the three
  * workflow-settings tabs (General, Constants, Outputs).
  */
-export function WorkflowSettingsDPanel({ readOnly = false, onClose }: WorkflowSettingsDPanelProps) {
+export function WorkflowSettingsDPanel({
+  readOnly = false,
+  onClose,
+  includeGeneral = true,
+}: WorkflowSettingsDPanelProps) {
   const { euiTheme } = useEuiTheme();
   const titleId = useGeneratedHtmlId({ prefix: 'workflowSettingsDPanel' });
-  const [tab, setTab] = useState<SettingsTab>('general');
+  const tabs = useMemo(
+    () => TABS.filter((item) => (item.id === 'general' ? includeGeneral : true)),
+    [includeGeneral]
+  );
+  const [tab, setTab] = useState<SettingsTab>(includeGeneral ? 'general' : 'constants');
+  const activeTab = !includeGeneral && tab === 'general' ? 'constants' : tab;
   const draft = useWorkflowSettingsDraft({ hydrateKey: 'd', readOnly });
 
   const tagOptions = useMemo(
@@ -145,9 +159,13 @@ export function WorkflowSettingsDPanel({ readOnly = false, onClose }: WorkflowSe
           </span>
           <EuiTitle size="xxs">
             <h2 id={titleId} css={{ margin: 0 }}>
-              {i18n.translate('workflows.settingsSurface.d.title', {
-                defaultMessage: 'Workflow settings',
-              })}
+              {includeGeneral
+                ? i18n.translate('workflows.settingsSurface.d.title', {
+                    defaultMessage: 'Workflow settings',
+                  })
+                : i18n.translate('workflows.settingsSurface.b.constantsAndOutputsTitle', {
+                    defaultMessage: 'Constants and outputs',
+                  })}
             </h2>
           </EuiTitle>
         </div>
@@ -171,10 +189,10 @@ export function WorkflowSettingsDPanel({ readOnly = false, onClose }: WorkflowSe
           bottomBorder={false}
           css={{ paddingInline: euiTheme.size.base, marginBlockStart: 0 }}
         >
-          {TABS.map((item) => (
+          {tabs.map((item) => (
             <EuiTab
               key={item.id}
-              isSelected={tab === item.id}
+              isSelected={activeTab === item.id}
               onClick={() => setTab(item.id)}
               data-test-subj={`workflowSettingsDTab-${item.id}`}
             >
@@ -192,7 +210,7 @@ export function WorkflowSettingsDPanel({ readOnly = false, onClose }: WorkflowSe
           padding: euiTheme.size.base,
         }}
       >
-        {tab === 'general' ? (
+        {activeTab === 'general' ? (
           <>
             <EuiFormRow
               fullWidth
@@ -271,7 +289,7 @@ export function WorkflowSettingsDPanel({ readOnly = false, onClose }: WorkflowSe
           </>
         ) : null}
 
-        {tab === 'constants' ? (
+        {activeTab === 'constants' ? (
           <WorkflowConstantsEditor
             fields={draft.constantFields}
             onChange={draft.handleConstantsChange}
@@ -280,7 +298,7 @@ export function WorkflowSettingsDPanel({ readOnly = false, onClose }: WorkflowSe
           />
         ) : null}
 
-        {tab === 'outputs' ? (
+        {activeTab === 'outputs' ? (
           <WorkflowOutputsEditor
             fields={draft.outputFields}
             onChange={draft.handleOutputsChange}

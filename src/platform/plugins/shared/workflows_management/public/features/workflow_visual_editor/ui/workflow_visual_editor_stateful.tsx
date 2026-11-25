@@ -61,12 +61,15 @@ import {
   WorkflowSettingsBPanel,
   type WorkflowSettingsBPanelKind,
 } from './workflow_settings_b_panel';
+import { type WorkflowSettingsCardPanelMode } from './workflow_settings_card_panel';
 import { WorkflowSettingsDPanel } from './workflow_settings_d_panel';
 import { WorkflowSettingsCSurface } from './workflow_settings_c_surface';
+import { WorkflowSettingsSurfaceSwitcher } from './workflow_settings_surface_switcher';
 import {
   getWorkflowSettingsBNodeLayout,
   getWorkflowSettingsSurfaceVariant,
-  setWorkflowSettingsSurfaceVariant,
+  isCanvasNodeSettingsSurface,
+  isDescriptionCardSettingsSurface,
   subscribeWorkflowSettingsSurfaceVariant,
   type WorkflowSettingsBNodeLayout,
   type WorkflowSettingsSurfaceVariant,
@@ -307,7 +310,9 @@ export const WorkflowVisualEditorStateful: React.FC<WorkflowVisualEditorStateful
   const [settingsBNodeLayout, setSettingsBNodeLayoutState] = useState<WorkflowSettingsBNodeLayout>(
     () => getWorkflowSettingsBNodeLayout()
   );
-  const [settingsBKind, setSettingsBKind] = useState<WorkflowSettingsBPanelKind | null>(null);
+  const [settingsBKind, setSettingsBKind] = useState<
+    WorkflowSettingsBPanelKind | WorkflowSettingsCardPanelMode | 'settings' | null
+  >(null);
   const [canvasHeight, setCanvasHeight] = useState(0);
   const [configPanelDirty, setConfigPanelDirty] = useState(false);
   /** When set, a discard confirm is open before navigating to this step id (null = deselect). */
@@ -323,6 +328,7 @@ export const WorkflowVisualEditorStateful: React.FC<WorkflowVisualEditorStateful
       subscribeWorkflowSettingsSurfaceVariant(() => {
         setSettingsSurfaceVariantState(getWorkflowSettingsSurfaceVariant());
         setSettingsBNodeLayoutState(getWorkflowSettingsBNodeLayout());
+        setSettingsBKind(null);
       }),
     []
   );
@@ -335,12 +341,8 @@ export const WorkflowVisualEditorStateful: React.FC<WorkflowVisualEditorStateful
     []
   );
 
-  useEffect(() => {
-    setWorkflowSettingsSurfaceVariant('b');
-  }, []);
-
   const openSettingsBPanel = useCallback(
-    (kind: WorkflowSettingsBPanelKind) => {
+    (kind: WorkflowSettingsBPanelKind | WorkflowSettingsCardPanelMode | 'settings') => {
       setPanel(null);
       setPendingInsert(null);
       setSelectedStep(null);
@@ -409,34 +411,64 @@ export const WorkflowVisualEditorStateful: React.FC<WorkflowVisualEditorStateful
 
   const workflow = definition ?? lastValidRef.current;
 
-  const settingsCounts = useMemo(() => {
-    try {
-      const doc = parseDocument(editorYaml);
-      const js = doc.toJS() as Record<string, unknown> | null;
-      return {
-        constants: parseConstsToFields(js?.consts ?? workflow?.consts).length,
-        outputs: parseOutputsToFields(js?.outputs ?? workflow?.outputs).length,
-      };
-    } catch {
-      return {
-        constants: parseConstsToFields(workflow?.consts).length,
-        outputs: parseOutputsToFields(workflow?.outputs).length,
-      };
-    }
+  const settingsSnapshot = useMemo(() => {
+    const read = () => {
+      try {
+        const doc = parseDocument(editorYaml);
+        const js = doc.toJS() as Record<string, unknown> | null;
+        return {
+          constants: parseConstsToFields(js?.consts ?? workflow?.consts),
+          outputs: parseOutputsToFields(js?.outputs ?? workflow?.outputs),
+        };
+      } catch {
+        return {
+          constants: parseConstsToFields(workflow?.consts),
+          outputs: parseOutputsToFields(workflow?.outputs),
+        };
+      }
+    };
+    const { constants, outputs } = read();
+    return {
+      constantsCount: constants.length,
+      outputsCount: outputs.length,
+      constantsPreview: constants.slice(0, 2).map((field) => ({
+        name: field.name,
+        value: field.value.replace(/\s+/g, ' ').trim(),
+      })),
+      outputsPreview: outputs.slice(0, 2).map((field) => ({
+        name: field.name,
+        value: field.type,
+      })),
+    };
   }, [editorYaml, workflow?.consts, workflow?.outputs]);
 
   const floatingPanelOpen = panel != null || settingsBKind != null;
 
   const settingsNodesProp = useMemo(
     () =>
-      canEdit && (settingsSurfaceVariant === 'b' || settingsSurfaceVariant === 'd')
+      canEdit &&
+      (isCanvasNodeSettingsSurface(settingsSurfaceVariant) ||
+        isDescriptionCardSettingsSurface(settingsSurfaceVariant))
         ? {
             workflowName: workflowName ?? workflow?.name ?? '',
-            constantsCount: settingsCounts.constants,
-            outputsCount: settingsCounts.outputs,
+            constantsCount: settingsSnapshot.constantsCount,
+            outputsCount: settingsSnapshot.outputsCount,
+            constantsPreview: settingsSnapshot.constantsPreview,
+            outputsPreview: settingsSnapshot.outputsPreview,
+            description: typeof workflow?.description === 'string' ? workflow.description : '',
+            tags: Array.isArray(workflow?.tags) ? workflow.tags : [],
             selectedKind: settingsBKind ?? undefined,
             cardLayout:
-              settingsSurfaceVariant === 'd' ? ('single' as const) : settingsBNodeLayout,
+              isDescriptionCardSettingsSurface(settingsSurfaceVariant)
+                ? ('description' as const)
+                : settingsBNodeLayout,
+            settingsChromePlacement:
+              settingsSurfaceVariant === 'd'
+                ? 'none'
+                : settingsSurfaceVariant === 'a'
+                  ? 'zoomCluster'
+                  : 'top',
+            groupTitle: settingsSurfaceVariant === 'e' ? 'data' : 'settings',
           }
         : undefined,
     [
@@ -444,10 +476,11 @@ export const WorkflowVisualEditorStateful: React.FC<WorkflowVisualEditorStateful
       settingsSurfaceVariant,
       workflowName,
       workflow?.name,
-      settingsCounts.constants,
-      settingsCounts.outputs,
+      settingsSnapshot,
       settingsBKind,
       settingsBNodeLayout,
+      workflow?.description,
+      workflow?.tags,
     ]
   );
 
@@ -919,7 +952,9 @@ export const WorkflowVisualEditorStateful: React.FC<WorkflowVisualEditorStateful
   );
 
   const handleSettingsNodeSelect = useCallback(
-    (kind: WorkflowSettingsBPanelKind | undefined) => {
+    (
+      kind: WorkflowSettingsBPanelKind | WorkflowSettingsCardPanelMode | 'settings' | undefined
+    ) => {
       if (kind == null) {
         setSettingsBKind(null);
         return;
@@ -1068,11 +1103,21 @@ export const WorkflowVisualEditorStateful: React.FC<WorkflowVisualEditorStateful
         suppressInsertionControls={floatingPanelOpen}
         settingsNodes={settingsNodesProp}
         onSettingsNodeSelect={
-          canEdit && (settingsSurfaceVariant === 'b' || settingsSurfaceVariant === 'd')
+          canEdit &&
+          (isCanvasNodeSettingsSurface(settingsSurfaceVariant) ||
+            isDescriptionCardSettingsSurface(settingsSurfaceVariant))
             ? handleSettingsNodeSelect
             : undefined
         }
       />
+      {canEdit ? (
+        <WorkflowSettingsSurfaceSwitcher
+          value={settingsSurfaceVariant}
+          onChange={() => {
+            setSettingsBKind(null);
+          }}
+        />
+      ) : null}
       {canEdit && settingsSurfaceVariant === 'c' ? (
         <WorkflowSettingsCSurface
           workflowId={workflowId}
@@ -1166,7 +1211,11 @@ export const WorkflowVisualEditorStateful: React.FC<WorkflowVisualEditorStateful
           />
         </CanvasConfigPanelShell>
       )}
-      {settingsBKind && settingsSurfaceVariant === 'b' && (
+      {(isCanvasNodeSettingsSurface(settingsSurfaceVariant) ||
+        isDescriptionCardSettingsSurface(settingsSurfaceVariant)) &&
+      (settingsBKind === 'info' ||
+        settingsBKind === 'constants' ||
+        settingsBKind === 'outputs') ? (
         <CanvasConfigPanelShell
           width={panelWidth}
           onWidthChange={setStoredPanelWidth}
@@ -1180,17 +1229,22 @@ export const WorkflowVisualEditorStateful: React.FC<WorkflowVisualEditorStateful
             onClose={closeSettingsBPanel}
           />
         </CanvasConfigPanelShell>
-      )}
-      {settingsBKind && settingsSurfaceVariant === 'd' && (
+      ) : null}
+      {(settingsSurfaceVariant === 'card' || settingsSurfaceVariant === 'a') &&
+      settingsBKind === 'settings' ? (
         <CanvasConfigPanelShell
           width={panelWidth}
           onWidthChange={setStoredPanelWidth}
           canvasWidth={canvasWidth}
           data-test-subj="workflowSettingsDPanelContainer"
         >
-          <WorkflowSettingsDPanel readOnly={!canEdit} onClose={closeSettingsBPanel} />
+          <WorkflowSettingsDPanel
+            readOnly={!canEdit}
+            onClose={closeSettingsBPanel}
+            includeGeneral={false}
+          />
         </CanvasConfigPanelShell>
-      )}
+      ) : null}
       {flyoutTarget && !panel && !settingsBKind && (
         <EuiFocusTrap returnFocus>
           <div

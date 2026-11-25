@@ -243,16 +243,19 @@ describe('WorkflowDetailHeader', () => {
     expect(getAllByText('Test Workflow').length).toBeGreaterThan(0);
   });
 
-  it('opens the workflow settings flyout from the header gear', () => {
-    setWorkflowSettingsSurfaceVariant('a');
-    const { getByTestId } = renderWithProviders(<WorkflowDetailHeader {...defaultProps} />);
+  it.each(['d'] as const)(
+    'opens the workflow settings flyout from the header gear for surface %s',
+    (variant) => {
+      setWorkflowSettingsSurfaceVariant(variant);
+      const { getByTestId } = renderWithProviders(<WorkflowDetailHeader {...defaultProps} />);
 
-    expect(screen.queryByTestId('workflowSettingsFlyout')).not.toBeInTheDocument();
-    fireEvent.click(getByTestId('workflowSettingsButton'));
-    expect(getByTestId('workflowSettingsFlyout')).toBeInTheDocument();
-  });
+      expect(screen.queryByTestId('workflowSettingsFlyout')).not.toBeInTheDocument();
+      fireEvent.click(getByTestId('workflowSettingsButton'));
+      expect(getByTestId('workflowSettingsFlyout')).toBeInTheDocument();
+    }
+  );
 
-  it.each(['b', 'c'] as const)(
+  it.each(['a', 'b', 'c', 'card', 'e'] as const)(
     'hides the header gear for canvas settings surface %s',
     (variant) => {
       setWorkflowSettingsSurfaceVariant(variant);

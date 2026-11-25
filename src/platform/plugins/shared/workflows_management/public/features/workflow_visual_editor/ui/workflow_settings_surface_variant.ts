@@ -7,8 +7,16 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-/** Settings-surface variants. B (canvas info nodes) is the default. */
-export type WorkflowSettingsSurfaceVariant = 'a' | 'b' | 'c' | 'd';
+/**
+ * Prototype options.
+ * `b` is Option A: settings nodes on the canvas. It is the default.
+ * `e` is Option E: a copy of Option A, until the next change.
+ * `card` is Option B: information card on the canvas, plus a separate settings button.
+ * `a` is Option C: the same card as Option B. Only the settings button moves, into the zoom controls.
+ * `d` is Option D: duplication. Description card, and the header gear opens the settings flyout.
+ * `c` stays in the type for older prototype code and is not offered.
+ */
+export type WorkflowSettingsSurfaceVariant = 'a' | 'b' | 'c' | 'd' | 'e' | 'card';
 
 /** Option B canvas card arrangements. */
 export type WorkflowSettingsBNodeLayout = 'row' | 'vertical' | 'compact';
@@ -26,7 +34,21 @@ const notify = (): void => {
 
 export const getWorkflowSettingsSurfaceVariant = (): WorkflowSettingsSurfaceVariant => {
   if (sessionVariant) return sessionVariant;
-  // Option B is the settings surface. Ignore a leftover prototype choice.
+  try {
+    const stored = sessionStorage.getItem(VARIANT_STORAGE_KEY);
+    if (
+      stored === 'b' ||
+      stored === 'e' ||
+      stored === 'card' ||
+      stored === 'a' ||
+      stored === 'd'
+    ) {
+      sessionVariant = stored;
+      return stored;
+    }
+  } catch {
+    // sessionStorage unavailable
+  }
   sessionVariant = 'b';
   try {
     sessionStorage.setItem(VARIANT_STORAGE_KEY, 'b');
@@ -79,6 +101,21 @@ export const setWorkflowSettingsBNodeLayout = (next: WorkflowSettingsBNodeLayout
   }
   notify();
 };
+
+/** Option A and Option E. Settings nodes on the canvas. */
+export const isCanvasNodeSettingsSurface = (
+  variant: WorkflowSettingsSurfaceVariant
+): boolean => variant === 'b' || variant === 'e';
+
+/** Options B, C, and D. All show the description card. */
+export const isDescriptionCardSettingsSurface = (
+  variant: WorkflowSettingsSurfaceVariant
+): boolean => variant === 'card' || variant === 'a' || variant === 'd';
+
+/** Option D. Header gear flyout, alongside the description card. */
+export const isHeaderGearSettingsSurface = (
+  variant: WorkflowSettingsSurfaceVariant
+): boolean => variant === 'd';
 
 export const subscribeWorkflowSettingsSurfaceVariant = (listener: () => void): (() => void) => {
   listeners.add(listener);

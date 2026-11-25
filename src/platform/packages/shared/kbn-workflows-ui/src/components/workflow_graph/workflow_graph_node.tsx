@@ -1117,7 +1117,11 @@ function WorkflowGraphNodeInner(node: NodeProps<Node<WorkflowGraphNodeData>>) {
           />
         </>
       ) : (
-        <Handle type="source" position={sourceHandlePos} style={{ opacity: 0 }} />
+        <Handle
+          type="source"
+          position={sourceHandlePos}
+          style={{ opacity: 0 }}
+        />
       )}
     </>
   );

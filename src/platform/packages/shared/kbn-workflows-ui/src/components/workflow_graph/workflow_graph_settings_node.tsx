@@ -12,6 +12,7 @@ import type { Node, NodeProps } from '@xyflow/react';
 import React, { memo } from 'react';
 import { useWorkflowGraphActions } from './workflow_graph_actions_context';
 import type { WorkflowSettingsNodeKind } from './workflow_graph_actions_context';
+import { WorkflowGraphSettingsDataCard } from './workflow_graph_settings_data_card';
 
 export type { WorkflowSettingsNodeKind };
 
@@ -22,6 +23,13 @@ export interface WorkflowGraphSettingsNodeData extends Record<string, unknown> {
   readonly iconType: string;
   /** Single-line, denser chrome for Option B Compact layout. */
   readonly compact?: boolean;
+  /** Option E preview card. Option A keeps the summary row. */
+  readonly presentation?: 'summary' | 'data';
+  readonly workflowName?: string;
+  readonly description?: string;
+  readonly tags?: readonly string[];
+  readonly count?: number;
+  readonly rows?: readonly { readonly name: string; readonly value: string }[];
 }
 
 /** Matches `CHIP_SIZE` on step/trigger nodes. */
@@ -31,7 +39,7 @@ const COMPACT_CHIP_SIZE = 24;
 function WorkflowGraphSettingsNodeInner(
   node: NodeProps<Node<WorkflowGraphSettingsNodeData>>
 ) {
-  const { kind, label, subtitle, iconType, compact = false } = node.data;
+  const { kind, label, subtitle, iconType, compact = false, presentation = 'summary' } = node.data;
   const euiThemeContext = useEuiTheme();
   const { euiTheme } = euiThemeContext;
   const nodeShadow = useEuiShadow('xs', { border: 'none' });
@@ -43,6 +51,21 @@ function WorkflowGraphSettingsNodeInner(
   const select = () => {
     onSettingsNodeSelect?.(kind);
   };
+
+  if (presentation === 'data') {
+    return (
+      <WorkflowGraphSettingsDataCard
+        kind={kind}
+        workflowName={node.data.workflowName ?? label}
+        description={node.data.description ?? ''}
+        tags={node.data.tags ?? []}
+        count={node.data.count ?? 0}
+        rows={node.data.rows ?? []}
+        isActive={isActive}
+        onSelect={select}
+      />
+    );
+  }
 
   return (
     <div

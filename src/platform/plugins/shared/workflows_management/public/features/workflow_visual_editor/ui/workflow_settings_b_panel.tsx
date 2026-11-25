@@ -12,7 +12,6 @@ import {
   EuiButton,
   EuiButtonEmpty,
   EuiButtonIcon,
-  EuiCodeBlock,
   EuiComboBox,
   EuiFieldText,
   EuiFlexGroup,
@@ -20,16 +19,13 @@ import {
   EuiFormRow,
   EuiIcon,
   EuiSpacer,
-  EuiTab,
-  EuiTabs,
-  EuiText,
   EuiTextArea,
   EuiTitle,
   EuiToolTip,
   useEuiTheme,
   useGeneratedHtmlId,
 } from '@elastic/eui';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { i18n } from '@kbn/i18n';
 import { ensureWorkflowGraphEuiIcons } from '@kbn/workflows-ui';
 import { useWorkflowSettingsDraft } from './use_workflow_settings_draft';
@@ -46,8 +42,6 @@ export interface WorkflowSettingsBPanelProps {
   readonly onClose: () => void;
 }
 
-type EditorTab = 'form' | 'yaml';
-
 const KIND_META: Record<WorkflowSettingsBPanelKind, { title: string; iconType: string }> = {
   info: {
     title: i18n.translate('workflows.settingsSurface.b.infoTitle', {
@@ -59,13 +53,13 @@ const KIND_META: Record<WorkflowSettingsBPanelKind, { title: string; iconType: s
     title: i18n.translate('workflows.settingsSurface.b.constantsTitle', {
       defaultMessage: 'Constants',
     }),
-    iconType: 'code',
+    iconType: 'key',
   },
   outputs: {
     title: i18n.translate('workflows.settingsSurface.b.outputsTitle', {
       defaultMessage: 'Outputs',
     }),
-    iconType: 'share',
+    iconType: 'logstashOutput',
   },
 };
 
@@ -81,7 +75,6 @@ export function WorkflowSettingsBPanel({
 }: WorkflowSettingsBPanelProps) {
   const { euiTheme } = useEuiTheme();
   const titleId = useGeneratedHtmlId({ prefix: 'workflowSettingsBPanel' });
-  const [tab, setTab] = useState<EditorTab>('form');
   const meta = KIND_META[kind];
 
   const draft = useWorkflowSettingsDraft({ hydrateKey: kind, readOnly });
@@ -135,8 +128,7 @@ export function WorkflowSettingsBPanel({
             display: 'flex',
             alignItems: 'center',
             gap: euiTheme.size.m,
-            // No bottom padding — tabs sit flush under the title row.
-            padding: `${euiTheme.size.base} ${euiTheme.size.xl} 0 ${euiTheme.size.base}`,
+            padding: `${euiTheme.size.base} ${euiTheme.size.xl} ${euiTheme.size.base} ${euiTheme.size.base}`,
           }}
         >
           <span
@@ -176,34 +168,6 @@ export function WorkflowSettingsBPanel({
             }}
           />
         </EuiToolTip>
-        {kind !== 'info' ? (
-          <EuiTabs
-            size="s"
-            bottomBorder={false}
-            css={{ paddingInline: euiTheme.size.base, marginBlockStart: 0 }}
-          >
-            <EuiTab
-              isSelected={tab === 'form'}
-              onClick={() => setTab('form')}
-              prepend={<EuiIcon type="workflow" aria-hidden />}
-              data-test-subj="workflowSettingsBPanelView-form"
-            >
-              {i18n.translate('workflows.settingsSurface.b.formTab', {
-                defaultMessage: 'Form',
-              })}
-            </EuiTab>
-            <EuiTab
-              isSelected={tab === 'yaml'}
-              onClick={() => setTab('yaml')}
-              prepend={<EuiIcon type="code" aria-hidden />}
-              data-test-subj="workflowSettingsBPanelView-yaml"
-            >
-              {i18n.translate('workflows.settingsSurface.b.yamlTab', {
-                defaultMessage: 'YAML',
-              })}
-            </EuiTab>
-          </EuiTabs>
-        ) : null}
       </div>
 
       <div
@@ -289,7 +253,7 @@ export function WorkflowSettingsBPanel({
           </>
         ) : null}
 
-        {kind === 'constants' && tab === 'form' ? (
+        {kind === 'constants' ? (
           <WorkflowConstantsEditor
             fields={draft.constantFields}
             onChange={draft.handleConstantsChange}
@@ -298,18 +262,7 @@ export function WorkflowSettingsBPanel({
           />
         ) : null}
 
-        {kind === 'constants' && tab === 'yaml' ? (
-          <EuiCodeBlock
-            language="yaml"
-            isCopyable
-            paddingSize="m"
-            data-test-subj="workflowSettingsBConstsYaml"
-          >
-            {draft.constsYaml || 'consts: {}'}
-          </EuiCodeBlock>
-        ) : null}
-
-        {kind === 'outputs' && tab === 'form' ? (
+        {kind === 'outputs' ? (
           <WorkflowOutputsEditor
             fields={draft.outputFields}
             onChange={draft.handleOutputsChange}
@@ -318,25 +271,6 @@ export function WorkflowSettingsBPanel({
             findReferencingSteps={draft.findOutputRefs}
             readOnly={readOnly}
           />
-        ) : null}
-
-        {kind === 'outputs' && tab === 'yaml' ? (
-          <>
-            <EuiText size="xs" color="subdued">
-              {i18n.translate('workflows.settingsSurface.b.outputsYamlProvisional', {
-                defaultMessage: 'Outputs YAML shape is provisional pending the YAML spec RFC.',
-              })}
-            </EuiText>
-            <EuiSpacer size="s" />
-            <EuiCodeBlock
-              language="yaml"
-              isCopyable
-              paddingSize="m"
-              data-test-subj="workflowSettingsBOutputsYaml"
-            >
-              {draft.outputsYaml || 'outputs: {}'}
-            </EuiCodeBlock>
-          </>
         ) : null}
       </div>
 
