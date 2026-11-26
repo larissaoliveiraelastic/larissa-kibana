@@ -189,7 +189,7 @@ export function StepForm({
         isOpen={optionalPickerOpen}
         closePopover={() => setOptionalPickerOpen(false)}
         panelPaddingSize="none"
-        anchorPosition="downLeft"
+        anchorPosition="upLeft"
         button={
           <EuiButtonEmpty
             size="xs"
@@ -229,7 +229,6 @@ export function StepForm({
           </h4>
         </EuiTitle>
       }
-      extraAction={addOptionalButton}
       data-test-subj="workflowStepConfigPanelAccordion-inputs"
       css={{
         // Keep the Inputs row reachable while the form scrolls beneath it.
@@ -277,6 +276,9 @@ export function StepForm({
           <div css={formStackCss} data-test-subj="workflowStepConfigPrimaryFields">
             {primaryFields.map((field) => renderField(field, { removable: false }))}
             {revealedOptionalFields.map((field) => renderField(field, { removable: true }))}
+            {addOptionalButton ? (
+              <div className="workflowStepConfigFieldRow">{addOptionalButton}</div>
+            ) : null}
           </div>
         )}
       </div>

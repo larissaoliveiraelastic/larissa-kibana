@@ -174,7 +174,7 @@ export function ReferenceValueBox({
         minBlockSize: euiTheme.size.xl,
         paddingInline: euiTheme.size.s,
         boxSizing: 'border-box',
-        borderRadius: euiTheme.border.radius.small,
+        borderRadius: euiTheme.border.radius.control,
         border: `${euiTheme.border.width.thin} solid ${
           isInvalid ? euiTheme.colors.borderStrongDanger : euiTheme.colors.borderBasePlain
         }`,

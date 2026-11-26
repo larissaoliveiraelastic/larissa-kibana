@@ -23,7 +23,6 @@ import {
   EuiFlexItem,
   EuiFormRow,
   EuiIcon,
-  EuiIconTip,
   EuiPanel,
   EuiSelect,
   EuiSpacer,
@@ -114,6 +113,8 @@ const PropertyEditor = ({
   const nameError = validateSchemaPropertyName(field.name, siblings, field.id);
   const isScalar = SCALAR_SCHEMA_PROPERTY_TYPES.has(field.type);
   const atNestingLimit = depth >= SCHEMA_PROPERTY_MAX_DEPTH;
+  const showEmptyYamlDefault =
+    field.hasDefault && field.defaultValue === '' && field.emptyDefaultFromYaml === true;
   const displayName = field.name.trim() || '—';
 
   const buttonContent = (
@@ -325,76 +326,79 @@ const PropertyEditor = ({
             </>
           ) : null}
 
-          <EuiSpacer size="s" />
-          <EuiFormRow fullWidth>
+          {/* Caller rules, separate from Allowed values: whether a value is mandatory and what fills in when it is missing. */}
+          <EuiSpacer size="l" />
             <EuiCheckbox
               id={`${field.id}-required`}
               label={
-                <span css={{ display: 'inline-flex', alignItems: 'center', gap: euiTheme.size.xs }}>
+                <span css={{ display: 'block' }}>
                   {i18n.translate('workflows.schemaPropertyBuilder.required', {
                     defaultMessage: 'Required',
                   })}
-                  <EuiIconTip
-                    type="info"
+                  <EuiText
+                    component="span"
+                    size="xs"
                     color="subdued"
-                    content={i18n.translate('workflows.schemaPropertyBuilder.requiredInfo', {
+                    css={{ display: 'block', marginTop: euiTheme.size.xs }}
+                    data-test-subj={`${dataTestSubjPrefix}-requiredInfo-${field.id}`}
+                  >
+                    {i18n.translate('workflows.schemaPropertyBuilder.requiredInfo', {
                       defaultMessage: 'The caller must provide a value',
                     })}
-                    aria-label={i18n.translate('workflows.schemaPropertyBuilder.requiredInfoAria', {
-                      defaultMessage: 'About required inputs',
-                    })}
-                    anchorProps={{
-                      'data-test-subj': `${dataTestSubjPrefix}-requiredInfo-${field.id}`,
-                      // The icon sits inside the checkbox's label: a click must not toggle it.
-                      onClick: (event) => event.preventDefault(),
-                    }}
-                  />
+                  </EuiText>
                 </span>
               }
               checked={field.required}
               onChange={(e) => onUpdate({ ...field, required: e.target.checked })}
               data-test-subj={`${dataTestSubjPrefix}-required-${field.id}`}
             />
-          </EuiFormRow>
-          <EuiFlexGroup
-            gutterSize="s"
-            alignItems="flexStart"
-            responsive={false}
-            // Keep the checkbox and its value on the same row.
-            css={{ flexWrap: 'nowrap' }}
-          >
-            <EuiFlexItem grow={false}>
-              <EuiCheckbox
-                id={`${field.id}-hasDefault`}
-                label={i18n.translate('workflows.schemaPropertyBuilder.useDefault', {
-                  defaultMessage: 'Default value',
-                })}
-                checked={field.hasDefault}
-                onChange={(e) => onUpdate({ ...field, hasDefault: e.target.checked })}
-                data-test-subj={`${dataTestSubjPrefix}-hasDefault-${field.id}`}
-              />
-            </EuiFlexItem>
-            <EuiFlexItem grow={true}>
-              <EuiTextArea
-                compressed
-                fullWidth
-                // Grows with its lines, up to a few: a default is often long, or an ES|QL query.
-                rows={Math.min(Math.max(field.defaultValue.split('\n').length, 1), 8)}
-                value={field.defaultValue}
-                disabled={!field.hasDefault}
-                aria-label={i18n.translate('workflows.schemaPropertyBuilder.defaultValueAria', {
-                  defaultMessage: 'Default value',
-                })}
-                placeholder={i18n.translate(
-                  'workflows.schemaPropertyBuilder.defaultValuePlaceholder',
-                  { defaultMessage: 'Empty when left blank' }
-                )}
-                onClick={(e) => e.stopPropagation()}
-                onChange={(e) => onUpdate({ ...field, defaultValue: e.target.value })}
-                data-test-subj={`${dataTestSubjPrefix}-default-${field.id}`}
-              />
-            </EuiFlexItem>
-          </EuiFlexGroup>
+            <EuiSpacer size="m" />
+            <EuiCheckbox
+              id={`${field.id}-hasDefault`}
+              label={i18n.translate('workflows.schemaPropertyBuilder.useDefault', {
+                defaultMessage: 'Default value',
+              })}
+              checked={field.hasDefault}
+              onChange={(e) =>
+                onUpdate({
+                  ...field,
+                  hasDefault: e.target.checked,
+                  // Turning the default off drops the document value. A later check is a new empty field.
+                  emptyDefaultFromYaml: e.target.checked ? field.emptyDefaultFromYaml : false,
+                })
+              }
+              data-test-subj={`${dataTestSubjPrefix}-hasDefault-${field.id}`}
+            />
+            {field.hasDefault ? (
+              <>
+                <EuiSpacer size="s" />
+                {/* Line up with the checkbox label: control width plus the label gap. */}
+                <div css={{ paddingLeft: euiTheme.size.l }}>
+                  <EuiTextArea
+                    compressed
+                    fullWidth
+                    // Grows with its lines, up to a few: a default is often long, or an ES|QL query.
+                    rows={Math.min(Math.max(field.defaultValue.split('\n').length, 1), 8)}
+                    value={field.defaultValue}
+                    aria-label={i18n.translate('workflows.schemaPropertyBuilder.defaultValueAria', {
+                      defaultMessage: 'Default value',
+                    })}
+                    placeholder={
+                      showEmptyYamlDefault
+                        ? i18n.translate('workflows.schemaPropertyBuilder.emptyDefaultFromYaml', {
+                            defaultMessage: 'Empty value from YAML',
+                          })
+                        : i18n.translate('workflows.schemaPropertyBuilder.defaultValuePlaceholder', {
+                            defaultMessage: 'Insert the value',
+                          })
+                    }
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={(e) => onUpdate({ ...field, defaultValue: e.target.value })}
+                    data-test-subj={`${dataTestSubjPrefix}-default-${field.id}`}
+                  />
+                </div>
+              </>
+            ) : null}
 
           {field.type === 'array' ? (
             <>

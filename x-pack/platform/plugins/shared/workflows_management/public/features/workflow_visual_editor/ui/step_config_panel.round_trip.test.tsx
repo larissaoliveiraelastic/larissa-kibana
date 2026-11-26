@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
 import { Provider } from 'react-redux-v7';
 import { parseDocument } from 'yaml';
@@ -123,9 +123,7 @@ describe('StepConfigPanel values round trip', () => {
 
     it('select', () => {
       renderPanel();
-      expect(
-        within(screen.getByTestId(field('method'))).getByTestId('comboBoxSearchInput')
-      ).toHaveValue('POST');
+      expect(screen.getByTestId(field('method'))).toHaveValue('POST');
     });
 
     it('a JSON object, on one line', () => {

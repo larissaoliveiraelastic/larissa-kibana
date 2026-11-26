@@ -69,7 +69,7 @@ export function FlyoutMonacoFrame({
             }
           : {
               border: `${euiTheme.border.width.thin} solid ${euiTheme.colors.borderBasePlain}`,
-              borderRadius: euiTheme.border.radius.medium,
+              borderRadius: euiTheme.border.radius.control,
             }),
         overflow: 'hidden',
         boxSizing: 'border-box',

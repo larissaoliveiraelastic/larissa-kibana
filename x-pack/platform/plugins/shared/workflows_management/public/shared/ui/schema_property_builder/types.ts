@@ -22,6 +22,11 @@ export interface SchemaPropertyField {
   readonly hasDefault: boolean;
   /** String form of the default; only meaningful when `hasDefault`. */
   readonly defaultValue: string;
+  /**
+   * The document's default is an empty string. Stays set while the text is edited, so the
+   * note can return if the field is cleared again. Cleared when the default is turned off.
+   */
+  readonly emptyDefaultFromYaml?: boolean;
   /** Allowed values for scalar types (maps to JSON Schema `enum` / `examples`). */
   readonly allowedValues: readonly string[];
   /** When true, allowed values are suggestions (`examples`); when false, a closed `enum`. */

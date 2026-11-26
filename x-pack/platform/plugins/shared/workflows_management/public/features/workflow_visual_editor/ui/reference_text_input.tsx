@@ -243,7 +243,7 @@ export function ReferenceTextInput({
     boxSizing: 'border-box',
     inlineSize: '100%',
     minBlockSize: euiTheme.size.xl,
-    borderRadius: euiTheme.border.radius.small,
+    borderRadius: euiTheme.border.radius.control,
     border: `${euiTheme.border.width.thin} solid ${
       isInvalid ? euiTheme.colors.borderStrongDanger : euiTheme.colors.borderBasePlain
     }`,

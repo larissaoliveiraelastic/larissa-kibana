@@ -128,7 +128,12 @@ describe('schema_property_model', () => {
           properties: { agent_id: { type: 'string', default: '' } },
         });
 
-        expect(parsed[0]).toMatchObject({ required: false, hasDefault: true, defaultValue: '' });
+        expect(parsed[0]).toMatchObject({
+          required: false,
+          hasDefault: true,
+          defaultValue: '',
+          emptyDefaultFromYaml: true,
+        });
         expect(schema.properties?.agent_id).toMatchObject({ type: 'string', default: '' });
         expect(schema.required).toBeUndefined();
       });
