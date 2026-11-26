@@ -6,7 +6,14 @@
  */
 
 import React, { memo, useCallback } from 'react';
-import { EuiConfirmModal, EuiSpacer, EuiText, useGeneratedHtmlId } from '@elastic/eui';
+import { css } from '@emotion/react';
+import {
+  EuiConfirmModal,
+  EuiSpacer,
+  EuiText,
+  useEuiTheme,
+  useGeneratedHtmlId,
+} from '@elastic/eui';
 import { KbnDangerCallout } from '@kbn/ui-callout';
 import type { ExportProvider } from '../../../../../../common/endpoint/types';
 import {
@@ -28,7 +35,19 @@ export interface DeleteStorageProviderModalProps {
 
 export const DeleteStorageProviderModal = memo<DeleteStorageProviderModalProps>(
   ({ provider, isDeleting, errorMessage, onConfirm, onCancel }) => {
+    const { euiTheme } = useEuiTheme();
     const titleId = useGeneratedHtmlId();
+    // The shared confirm header only reserves the close button's box, so a long title
+    // sits against the X. Keep a full size.l gutter, and line the X up with the title.
+    const modalStyles = css`
+      .euiModalHeader {
+        padding-inline-end: calc(${euiTheme.size.xxl} + ${euiTheme.size.l});
+      }
+
+      .euiModal__closeIcon {
+        inset-block-start: ${euiTheme.size.l};
+      }
+    `;
 
     const handleCancel = useCallback(() => {
       if (!isDeleting) {
@@ -47,6 +66,7 @@ export const DeleteStorageProviderModal = memo<DeleteStorageProviderModalProps>(
         confirmButtonText={DELETE_MODAL_CONFIRM_BUTTON_LABEL}
         buttonColor="danger"
         isLoading={isDeleting}
+        css={modalStyles}
         data-test-subj="deleteStorageProviderModal"
       >
         {errorMessage && (

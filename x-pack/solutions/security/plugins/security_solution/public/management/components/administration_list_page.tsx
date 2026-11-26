@@ -7,8 +7,9 @@
 
 import type { PropsWithChildren } from 'react';
 import React, { memo } from 'react';
+import { css } from '@emotion/react';
 import type { CommonProps } from '@elastic/eui';
-import { EuiPageSection, EuiSpacer } from '@elastic/eui';
+import { EuiPageSection, EuiSpacer, useEuiTheme } from '@elastic/eui';
 import type {
   AppHeaderBack,
   AppHeaderMenu,
@@ -64,7 +65,11 @@ export const AdministrationListPage = memo<
     isHeaderLoading = false,
     ...otherProps
   }) => {
+    const { euiTheme } = useEuiTheme();
     const hasTabs = Boolean(tabs?.length);
+    const tabContentStyles = css`
+      padding-inline: calc(${euiTheme.size.xl} * 2);
+    `;
 
     return (
       <div {...otherProps}>
@@ -87,7 +92,12 @@ export const AdministrationListPage = memo<
             {!hasTabs && <EuiSpacer size="m" />}
           </>
         )}
-        <EuiPageSection paddingSize="none" color="transparent" restrictWidth={restrictWidth}>
+        <EuiPageSection
+          paddingSize="none"
+          color="transparent"
+          restrictWidth={restrictWidth}
+          contentProps={hasTabs ? { css: tabContentStyles } : undefined}
+        >
           {children}
         </EuiPageSection>
       </div>

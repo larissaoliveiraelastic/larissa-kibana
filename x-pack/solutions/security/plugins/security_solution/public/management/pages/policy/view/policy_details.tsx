@@ -93,7 +93,7 @@ const PolicyDetailsLoaded = React.memo<{
       tabs={tabs}
       metadata={metadata}
       docLink={docLink}
-      restrictWidth={true}
+      restrictWidth={false}
     >
       {body}
     </AdministrationListPage>

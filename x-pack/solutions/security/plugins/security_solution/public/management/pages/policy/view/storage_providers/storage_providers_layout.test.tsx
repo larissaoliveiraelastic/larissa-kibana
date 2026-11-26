@@ -193,7 +193,7 @@ describe('When rendering the StorageProvidersLayout', () => {
       ]);
 
       expect(renderResult.getByTestId('storageProvidersDescription')).toHaveTextContent(
-        'Response actions can upload the files they collect to your own storage instead of Fleet.'
+        'Response actions can upload the files they collect to your own storage instead of Elasticsearch.'
       );
 
       const firstRow = renderResult.getByTestId('storageProvidersTableRow-azure-1');
@@ -468,7 +468,10 @@ describe('When rendering the StorageProvidersLayout', () => {
       const modal = await renderResult.findByTestId('deleteStorageProviderModal');
       expect(modal).toHaveTextContent('Delete storage provider azure-1?');
       expect(modal).toHaveTextContent(
-        "Exports to this provider that haven't reached a host yet will fail."
+        'This takes effect immediately for every host on this policy.'
+      );
+      expect(within(modal).getByTestId('confirmModalConfirmButton')).toHaveTextContent(
+        'Delete provider'
       );
 
       await userEvent.click(within(modal).getByTestId('confirmModalConfirmButton'));
