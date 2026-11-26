@@ -31,7 +31,8 @@ export const STORAGE_PROVIDERS_DESCRIPTION = i18n.translate(
   'xpack.securitySolution.endpoint.policy.storageProviders.description',
   {
     defaultMessage:
-      'Response actions can upload the files they collect to your own storage instead of Fleet. Storage providers apply to Windows, macOS, and Linux hosts using this policy.',
+      'Response actions can upload the files they collect to your own storage instead of Elasticsearch. In the response console, pass {exportArgument} to choose a provider. Storage providers apply to Windows, macOS, and Linux hosts using this policy.',
+    values: { exportArgument: '--export <name>' },
   }
 );
 
@@ -357,12 +358,15 @@ export const getDeleteModalTitle = (name: string): string =>
 
 export const DELETE_MODAL_DESCRIPTION = i18n.translate(
   'xpack.securitySolution.endpoint.policy.storageProviders.deleteModal.description',
-  { defaultMessage: "Exports to this provider that haven't reached a host yet will fail." }
+  {
+    defaultMessage:
+      "This takes effect immediately for every host on this policy. Exports to this provider that haven't reached a host yet will fail.",
+  }
 );
 
 export const DELETE_MODAL_CONFIRM_BUTTON_LABEL = i18n.translate(
   'xpack.securitySolution.endpoint.policy.storageProviders.deleteModal.confirmButtonLabel',
-  { defaultMessage: 'Delete' }
+  { defaultMessage: 'Delete provider' }
 );
 
 export const DELETE_MODAL_CANCEL_BUTTON_LABEL = i18n.translate(

@@ -20,8 +20,8 @@ import {
   EuiFlyoutHeader,
   EuiForm,
   EuiFormRow,
-  EuiSelect,
   EuiSpacer,
+  EuiSuperSelect,
   EuiTextColor,
   EuiTitle,
   useGeneratedHtmlId,
@@ -68,7 +68,7 @@ interface StorageProviderFormValues {
 
 const TYPE_OPTIONS = EXPORT_PROVIDER_TYPES.map((type) => ({
   value: type,
-  text: EXPORT_PROVIDER_TYPE_LABELS[type],
+  inputDisplay: EXPORT_PROVIDER_TYPE_LABELS[type],
 }));
 
 const isExportProviderType = (value: string): value is ExportProviderType =>
@@ -162,14 +162,11 @@ export const StorageProviderFlyout = memo<StorageProviderFlyoutProps>(
       []
     );
 
-    const handleTypeChange = useCallback(
-      ({ target: { value } }: ChangeEvent<HTMLSelectElement>) => {
-        if (isExportProviderType(value)) {
-          setValues((prev) => ({ ...prev, type: value }));
-        }
-      },
-      []
-    );
+    const handleTypeChange = useCallback((value: string) => {
+      if (isExportProviderType(value)) {
+        setValues((prev) => ({ ...prev, type: value }));
+      }
+    }, []);
 
     const handleBlur = useCallback(
       (field: ExportProviderFieldName) => () => {
@@ -229,14 +226,15 @@ export const StorageProviderFlyout = memo<StorageProviderFlyoutProps>(
               error={typeError}
               fullWidth
             >
-              <EuiSelect
+              <EuiSuperSelect
                 options={TYPE_OPTIONS}
-                value={values.type}
+                valueOfSelected={values.type}
                 onChange={handleTypeChange}
                 onBlur={handleBlur('type')}
                 disabled={isEdit || isSaving}
                 isInvalid={Boolean(typeError)}
                 fullWidth
+                aria-label={TYPE_FIELD_LABEL}
                 data-test-subj="storageProviderFlyout-typeSelect"
               />
             </EuiFormRow>

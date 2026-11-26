@@ -10,9 +10,9 @@ import type { EuiBasicTableColumn, EuiTableActionsColumnType } from '@elastic/eu
 import {
   EuiBasicTable,
   EuiButton,
-  EuiEmptyPrompt,
   EuiPageHeader,
   EuiPageHeaderSection,
+  EuiPageTemplate,
   EuiSpacer,
   EuiText,
   EuiTitle,
@@ -307,7 +307,7 @@ export const StorageProvidersLayout = memo<StorageProvidersLayoutProps>(({ polic
   return (
     <div data-test-subj="storageProvidersLayout">
       {providers.length === 0 ? (
-        <EuiEmptyPrompt
+        <EuiPageTemplate.EmptyPrompt
           color="subdued"
           iconType="storage"
           title={<h2>{EMPTY_STATE_TITLE}</h2>}
