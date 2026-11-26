@@ -8,10 +8,11 @@
 import {
   EuiButtonEmpty,
   EuiButtonIcon,
-  EuiComboBox,
   EuiConfirmModal,
   EuiFieldNumber,
   EuiFieldText,
+  EuiFlexGroup,
+  EuiFlexItem,
   EuiIcon,
   EuiSwitch,
   EuiText,
@@ -20,7 +21,7 @@ import {
   useEuiTheme,
   useGeneratedHtmlId,
 } from '@elastic/eui';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { stringify as stringifyYaml } from 'yaml';
 import { i18n } from '@kbn/i18n';
 import { MAP_DIRECTIVE } from '@kbn/workflows-extensions/common';
@@ -30,6 +31,7 @@ import { ConnectorIdField } from './connector_id_field';
 import { KeyValueField } from './key_value_field';
 import { ListField } from './list_field';
 import { ReferenceCapableField } from './reference_capable_field';
+import { SchemaOptionsField } from './schema_options_field';
 import { ReferenceTextInput } from './reference_text_input';
 import { ReferenceValueBox } from './reference_value_box';
 import { FieldDescriptionIconSlot, StepValidatedFormRow } from './step_validated_form_row';
@@ -89,6 +91,58 @@ function YamlOnlyValue({
         })}
       </EuiText>
     </>
+  );
+}
+
+/**
+ * Optional-field trash, centered on the control. The label sits above that control,
+ * so centering on the whole row would leave the icon at the top of the field.
+ */
+function OptionalFieldRow({
+  children,
+  remove,
+}: {
+  children: React.ReactNode;
+  remove: React.ReactNode;
+}) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [marginTop, setMarginTop] = useState(0);
+
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+
+    const align = () => {
+      const control = root.querySelector('.euiFormRow__fieldWrapper')?.firstElementChild;
+      const icon = root.querySelector('[data-test-subj^="workflowStepConfigRemoveOptional-"]');
+      if (!(control instanceof HTMLElement) || !(icon instanceof HTMLElement)) return;
+      const rootTop = root.getBoundingClientRect().top;
+      const controlBox = control.getBoundingClientRect();
+      const iconBox = icon.getBoundingClientRect();
+      const desired = controlBox.top - rootTop + (controlBox.height - iconBox.height) / 2;
+      const delta = desired - (iconBox.top - rootTop);
+      setMarginTop((current) => {
+        const next = current + delta;
+        return Math.abs(next - current) < 0.5 ? current : next;
+      });
+    };
+
+    align();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(align);
+    observer.observe(root);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div ref={rootRef} className="workflowStepConfigFieldRow">
+      <EuiFlexGroup gutterSize="s" alignItems="flexStart" responsive={false}>
+        <EuiFlexItem>{children}</EuiFlexItem>
+        <EuiFlexItem grow={false}>
+          <div css={{ marginTop }}>{remove}</div>
+        </EuiFlexItem>
+      </EuiFlexGroup>
+    </div>
   );
 }
 
@@ -195,24 +249,6 @@ export function StepFieldRow({
     </span>
   );
 
-  const removeExpandedCss = {
-    width: 18,
-    minWidth: 18,
-    opacity: 1,
-    marginInlineStart: 6,
-  };
-  const removeExpandCss = {
-    width: 0,
-    minWidth: 0,
-    opacity: 0,
-    overflow: 'hidden' as const,
-    marginInlineStart: 0,
-    transition: 'width 140ms ease, opacity 140ms ease, margin 140ms ease',
-    '@media (prefers-reduced-motion: reduce)': { transition: 'none' },
-    '&:hover': { color: euiTheme.colors.textDanger },
-    // Always focusable; expand on own focus the same way row hover does.
-    '&:focus, &:focus-visible': removeExpandedCss,
-  };
 
   const handleSourceChange = (next: ValueSource) => {
     if (next === 'data') {
@@ -293,7 +329,6 @@ export function StepFieldRow({
     !fixedOnly &&
     (field.kind === 'boolean' ||
       field.kind === 'number' ||
-      field.kind === 'select' ||
       field.kind === 'connector-id' ||
       listIsTags ||
       codeTakesData);
@@ -337,40 +372,28 @@ export function StepFieldRow({
     />
   );
 
+  // Trash sits beside the field, using the same icon as the Manual trigger remove control.
   const removeControl = onRemove ? (
-    <span
-      css={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        // Expand ✕ on row hover / own focus.
-        '.workflowStepConfigFieldRow:hover &, &:focus-within': {
-          '[data-remove-field]': removeExpandedCss,
-        },
-      }}
-    >
-      <EuiToolTip content={removeLabel} disableScreenReaderOutput>
-        <EuiButtonIcon
-          iconType="cross"
-          size="xs"
-          color="text"
-          aria-label={removeLabel}
-          onClick={onRemove}
-          data-remove-field=""
-          data-test-subj={`workflowStepConfigRemoveOptional-${fieldId(field)}`}
-          css={removeExpandCss}
-        />
-      </EuiToolTip>
-    </span>
+    <EuiToolTip content={removeLabel} disableScreenReaderOutput>
+      <EuiButtonIcon
+        iconType="trash"
+        color="danger"
+        aria-label={removeLabel}
+        onClick={onRemove}
+        data-test-subj={`workflowStepConfigRemoveOptional-${fieldId(field)}`}
+      />
+    </EuiToolTip>
   ) : undefined;
 
-  // "Optional" sits right after the label; the remove ✕ and the Fixed | Data switch take the far side.
-  const labelAppend =
-    removeControl || sourceToggle ? (
-      <span css={{ display: 'inline-flex', alignItems: 'center', gap: euiTheme.size.xs }}>
-        {removeControl}
-        {sourceToggle}
-      </span>
-    ) : undefined;
+  // "Optional" stays with the label. The trash sits beside the control, not in the label.
+  const labelAppend = sourceToggle;
+
+  const wrapRow = (child: React.ReactElement) =>
+    removeControl ? (
+      <OptionalFieldRow remove={removeControl}>{child}</OptionalFieldRow>
+    ) : (
+      <div className="workflowStepConfigFieldRow">{child}</div>
+    );
 
   const fixedOnlyHint = i18n.translate('workflows.stepConfigPanel.fixedOnlyHint', {
     defaultMessage: 'Read exactly as typed. Not a template.',
@@ -387,45 +410,41 @@ export function StepFieldRow({
     : undefined;
 
   if (!representable) {
-    return (
-      <div className="workflowStepConfigFieldRow">
-        <StepValidatedFormRow
-          label={labelContent}
-          labelAppend={labelAppend}
-          helpText={helpText}
-          isInvalid={false}
+    return wrapRow(
+      <StepValidatedFormRow
+        label={labelContent}
+        labelAppend={labelAppend}
+        helpText={helpText}
+        isInvalid={false}
+        fullWidth
+        display="row"
+      >
+        <EuiFieldText
+          compressed
           fullWidth
-          display="row"
-        >
-          <EuiFieldText
-            compressed
-            fullWidth
-            readOnly
-            value={stringifyYaml(value).trim()}
-            data-test-subj={`${testSubj}-readonly`}
-          />
-        </StepValidatedFormRow>
-      </div>
+          readOnly
+          value={stringifyYaml(value).trim()}
+          data-test-subj={`${testSubj}-readonly`}
+        />
+      </StepValidatedFormRow>
     );
   }
 
   if (field.kind === 'boolean') {
     if (source === 'data') {
-      return (
-        <div className="workflowStepConfigFieldRow">
-          <StepValidatedFormRow
-            label={labelContent}
-            labelAppend={labelAppend}
-            description={description}
-            helpText={helpText}
-            isInvalid={isInvalid}
-            error={errorMessage}
-            fullWidth
-            display="row"
-          >
-            {renderDataBox({ onExpand: expandFromData })}
-          </StepValidatedFormRow>
-        </div>
+      return wrapRow(
+        <StepValidatedFormRow
+          label={labelContent}
+          labelAppend={labelAppend}
+          description={description}
+          helpText={helpText}
+          isInvalid={isInvalid}
+          error={errorMessage}
+          fullWidth
+          display="row"
+        >
+          {renderDataBox({ onExpand: expandFromData })}
+        </StepValidatedFormRow>
       );
     }
 
@@ -471,9 +490,11 @@ export function StepFieldRow({
               aria-describedby={switchHelpText ? `${switchId}-help` : undefined}
               data-test-subj={testSubj}
             />
+          </div>
+          <div css={{ display: 'inline-flex', alignItems: 'center', gap: euiTheme.size.s }}>
+            {sourceToggle}
             {removeControl}
           </div>
-          {sourceToggle}
         </div>
         {switchHelpText ? (
           <EuiText size="xs" color="subdued" id={`${switchId}-help`}>
@@ -494,10 +515,6 @@ export function StepFieldRow({
     fullWidth: true,
     display: 'row' as const,
   };
-
-  const wrapRow = (child: React.ReactElement) => (
-    <div className="workflowStepConfigFieldRow">{child}</div>
-  );
 
   const codeField: StepFormField = field.kind === 'list' ? asJsonField(field) : field;
 
@@ -576,33 +593,21 @@ export function StepFieldRow({
           )}
         </StepValidatedFormRow>
       );
-    case 'select': {
-      const selectOptions = (field.options ?? []).map((o) => ({ label: o }));
-      const strVal = value === undefined || value === null ? undefined : String(value);
-      const selectedOptions = strVal !== undefined ? [{ label: strVal }] : [];
+    case 'select':
       return wrapRow(
         <StepValidatedFormRow {...rowProps}>
-          {source === 'data' ? (
-            renderDataBox({ onExpand: expandFromData })
-          ) : (
-            <EuiComboBox
-              aria-label={field.label}
-              singleSelection={{ asPlainText: true }}
-              options={selectOptions}
-              selectedOptions={selectedOptions}
-              onChange={(opts) => onChange(opts[0]?.label ?? undefined)}
-              onCreateOption={(text) => onChange(text)}
-              isClearable={false}
-              compressed
-              fullWidth
-              isInvalid={isInvalid}
-              onBlur={accuseIfInvalid}
-              data-test-subj={testSubj}
-            />
-          )}
+          <SchemaOptionsField
+            options={field.options ?? []}
+            value={value}
+            onChange={onChange}
+            isInvalid={isInvalid}
+            onBlur={accuseIfInvalid}
+            ariaLabel={field.label}
+            testSubj={testSubj}
+            catalog={referenceCatalog}
+          />
         </StepValidatedFormRow>
       );
-    }
     case 'connector-id':
       return wrapRow(
         <StepValidatedFormRow {...rowProps}>

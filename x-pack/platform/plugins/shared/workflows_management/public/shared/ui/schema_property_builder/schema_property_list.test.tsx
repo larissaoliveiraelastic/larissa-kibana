@@ -107,21 +107,19 @@ describe('SchemaPropertyList', () => {
       ]);
     });
 
-    it('explains Required in an info icon, and a click on it does not toggle the checkbox', async () => {
-      const onChange = jest.fn();
-      renderList({ properties: [host], onChange });
+    it('explains Required as text under the checkbox', () => {
+      renderList({ properties: [host], onChange: jest.fn() });
 
-      expect(screen.queryByText(/the caller must provide/i)).not.toBeInTheDocument();
-      await userEvent.click(screen.getByTestId('schemaProperty-requiredInfo-host'));
-
-      expect(onChange).not.toHaveBeenCalled();
+      expect(screen.getByTestId('schemaProperty-requiredInfo-host')).toHaveTextContent(
+        /the caller must provide a value/i
+      );
     });
 
-    it('keeps the default text disabled until the default is enabled, and enabling keeps it empty', async () => {
+    it('hides the default field until the default is enabled, and enabling keeps it empty', async () => {
       const onChange = jest.fn();
       renderList({ properties: [host], onChange });
 
-      expect(screen.getByTestId('schemaProperty-default-host')).toBeDisabled();
+      expect(screen.queryByTestId('schemaProperty-default-host')).not.toBeInTheDocument();
       await userEvent.click(screen.getByTestId('schemaProperty-hasDefault-host'));
 
       expect(onChange).toHaveBeenCalledWith([
@@ -148,6 +146,74 @@ describe('SchemaPropertyList', () => {
       await userEvent.type(screen.getByTestId('schemaProperty-default-host'), 'x');
 
       expect(onChange).toHaveBeenCalledWith([expect.objectContaining({ defaultValue: 'x' })]);
+    });
+
+    it('shows an empty document default as an empty field with a placeholder, and no error', () => {
+      renderList({
+        properties: [{ ...host, hasDefault: true, defaultValue: '', emptyDefaultFromYaml: true }],
+      });
+
+      const textbox = screen.getByTestId('schemaProperty-default-host');
+
+      expect(screen.getByTestId('schemaProperty-hasDefault-host')).toBeChecked();
+      expect(textbox).toBeEnabled();
+      expect(textbox).toHaveValue('');
+      expect(textbox).not.toBeInvalid();
+      expect(textbox).toHaveAttribute('placeholder', 'Empty value from YAML');
+      expect(screen.queryByText('Empty value from YAML')).not.toBeInTheDocument();
+    });
+
+    it('uses the plain placeholder once the empty document default has text, and restores it when cleared', () => {
+      const { rerender } = renderList({
+        properties: [{ ...host, hasDefault: true, defaultValue: '', emptyDefaultFromYaml: true }],
+      });
+      const filled = [{ ...host, hasDefault: true, defaultValue: 'abc', emptyDefaultFromYaml: true }];
+
+      rerender(
+        <TestProvider>
+          <SchemaPropertyList properties={filled} onChange={jest.fn()} />
+        </TestProvider>
+      );
+      expect(screen.getByTestId('schemaProperty-default-host')).toHaveAttribute(
+        'placeholder',
+        'Insert the value'
+      );
+
+      rerender(
+        <TestProvider>
+          <SchemaPropertyList
+            properties={[{ ...host, hasDefault: true, defaultValue: '', emptyDefaultFromYaml: true }]}
+            onChange={jest.fn()}
+          />
+        </TestProvider>
+      );
+      expect(screen.getByTestId('schemaProperty-default-host')).toHaveAttribute(
+        'placeholder',
+        'Empty value from YAML'
+      );
+    });
+
+    it('does not call a newly checked empty default an empty YAML value', () => {
+      renderList({ properties: [{ ...host, hasDefault: true, defaultValue: '' }] });
+
+      expect(screen.getByTestId('schemaProperty-default-host')).toHaveAttribute(
+        'placeholder',
+        'Insert the value'
+      );
+    });
+
+    it('keeps the empty-document note available when the text changes', async () => {
+      const onChange = jest.fn();
+      renderList({
+        properties: [{ ...host, hasDefault: true, defaultValue: '', emptyDefaultFromYaml: true }],
+        onChange,
+      });
+
+      await userEvent.type(screen.getByTestId('schemaProperty-default-host'), 'a');
+
+      expect(onChange).toHaveBeenCalledWith([
+        expect.objectContaining({ defaultValue: 'a', emptyDefaultFromYaml: true }),
+      ]);
     });
   });
 

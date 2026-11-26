@@ -1727,18 +1727,22 @@ with:
 
     it('keeps a dropdown reference in the text form and offers no literal {{ }} option', () => {
       const { onFragmentChange } = renderSwitchy('name: s\ntype: switchy\nwith:\n  method: GET\n');
-      fireEvent.click(screen.getByTestId('workflowStepConfigField-with.method-source-data'));
-      fireEvent.focusIn(screen.getByTestId('workflowStepConfigField-with.method-pick'));
+      const input = screen.getByTestId('workflowStepConfigField-with.method');
+      expect(
+        screen.queryByTestId('workflowStepConfigField-with.method-source-data')
+      ).not.toBeInTheDocument();
+      fireEvent.focus(input);
+      fireEvent.change(input, { target: { value: '', selectionStart: 0 } });
+      fireEvent.change(input, { target: { value: '{', selectionStart: 1 } });
+      document.execCommand = () => false;
       act(() => {
         insertIntoActiveDataReferenceTarget('{{ inputs.method }}');
       });
       expect(savedFragments(onFragmentChange).pop()).toMatch(
         /method: ["']?\{\{ inputs\.method \}\}["']?/
       );
-      // A text-form reference in a text field is correct, so it is not flagged.
-      expect(screen.getByTestId('workflowStepConfigField-with.method-chip')).toHaveAttribute(
-        'data-tone',
-        'neutral'
+      expect(screen.getByTestId('workflowStepConfigField-with.method')).toHaveValue(
+        '{{ inputs.method }}'
       );
     });
 
@@ -1749,11 +1753,11 @@ with:
         return screen.getByTestId('workflowFieldEditorSubFlyoutTextarea') as HTMLTextAreaElement;
       };
 
-      it('is offered on Data for numbers, yes/no and dropdowns, never on Fixed', () => {
+      it('is offered on Data for numbers and yes/no, never on Fixed', () => {
         renderSwitchy(
           'name: s\ntype: switchy\nwith:\n  retries: 3\n  debug: true\n  method: GET\n'
         );
-        for (const field of ['retries', 'debug', 'method']) {
+        for (const field of ['retries', 'debug']) {
           expect(
             screen.queryByTestId(`workflowStepConfigField-with.${field}-expand`)
           ).not.toBeInTheDocument();
@@ -1762,6 +1766,9 @@ with:
             screen.getByTestId(`workflowStepConfigField-with.${field}-expand`)
           ).toBeInTheDocument();
         }
+        expect(
+          screen.queryByTestId('workflowStepConfigField-with.method-source-data')
+        ).not.toBeInTheDocument();
       });
 
       it('shows the reference and writes a changed one in the value form for a number', () => {
@@ -1840,8 +1847,9 @@ with:
         const { onFragmentChange } = renderSwitchy(
           'name: s\ntype: switchy\nwith:\n  method: GET\n'
         );
-        const textarea = openExpanded('method');
-        fireEvent.change(textarea, { target: { value: '{{ inputs.method }}' } });
+        fireEvent.change(screen.getByTestId('workflowStepConfigField-with.method'), {
+          target: { value: '{{ inputs.method }}', selectionStart: 20 },
+        });
         expect(savedFragments(onFragmentChange).pop()).toMatch(
           /method: ["']?\{\{ inputs\.method \}\}["']?/
         );

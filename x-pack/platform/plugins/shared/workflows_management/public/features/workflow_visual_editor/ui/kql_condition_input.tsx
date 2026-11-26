@@ -116,7 +116,7 @@ export function KqlConditionInput({
         minBlockSize: MIN_BOX_HEIGHT_PX,
         resize: 'vertical',
         overflow: 'hidden',
-        borderRadius: euiTheme.border.radius.small,
+        borderRadius: euiTheme.border.radius.control,
         border: `${euiTheme.border.width.thin} solid ${
           isInvalid ? euiTheme.colors.borderStrongDanger : euiTheme.colors.borderBasePlain
         }`,

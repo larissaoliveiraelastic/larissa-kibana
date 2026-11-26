@@ -237,7 +237,7 @@ export function FieldEditorSubFlyout({
     border: `${euiTheme.border.width.thin} solid ${
       isDragOver ? euiTheme.colors.borderStrongPrimary : euiTheme.colors.borderBasePlain
     }`,
-    borderRadius: euiTheme.border.radius.small,
+    borderRadius: euiTheme.border.radius.control,
     background: euiTheme.colors.backgroundBaseSubdued,
     ...chipCss,
   } as const;

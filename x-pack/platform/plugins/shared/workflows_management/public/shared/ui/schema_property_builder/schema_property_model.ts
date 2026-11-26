@@ -31,6 +31,7 @@ export const createEmptySchemaProperty = (
   required: false,
   hasDefault: false,
   defaultValue: '',
+  emptyDefaultFromYaml: false,
   allowedValues: [],
   allowOtherValues: false,
   ...overrides,
@@ -154,6 +155,7 @@ const parseProperty = (
   }
 
   const hasDefault = schema.default !== undefined && schema.default !== null;
+  const defaultValue = defaultToString(schema.default);
 
   return {
     id: createId(),
@@ -162,7 +164,9 @@ const parseProperty = (
     description: typeof schema.description === 'string' ? schema.description : '',
     required: requiredNames.has(name),
     hasDefault,
-    defaultValue: defaultToString(schema.default),
+    defaultValue,
+    // Remember an empty document default without rewriting it.
+    emptyDefaultFromYaml: hasDefault && defaultValue === '',
     allowedValues,
     allowOtherValues,
     properties,
@@ -326,6 +330,7 @@ export const applyTypeChange = (
     required: false,
     hasDefault: false,
     defaultValue: '',
+    emptyDefaultFromYaml: false,
     allowedValues: [],
     allowOtherValues: false,
     properties: nextType === 'object' ? field.properties ?? [] : undefined,

@@ -206,7 +206,7 @@ export function CodeField({
                 border: `${euiTheme.border.width.thin} solid ${
                   isInvalid ? euiTheme.colors.borderStrongDanger : euiTheme.colors.borderBasePlain
                 }`,
-                borderRadius: euiTheme.border.radius.small,
+                borderRadius: euiTheme.border.radius.control,
                 background: euiTheme.colors.backgroundBaseSubdued,
                 boxSizing: 'border-box',
                 ...chipCss,

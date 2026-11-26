@@ -442,7 +442,7 @@ export function ReferenceCapableField({
               flexDirection: 'column',
             }
           : {}),
-        borderRadius: euiTheme.border.radius.small,
+        borderRadius: euiTheme.border.radius.control,
         boxShadow: isDragOver
           ? `inset 0 0 0 2px ${euiTheme.colors.borderStrongPrimary}`
           : undefined,
